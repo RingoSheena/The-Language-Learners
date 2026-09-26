@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useNavigate } from 'react-router-dom'; 
+import { Link, useNavigate } from 'react-router-dom';
 
 export default function Login() {
   const [email, setEmail] = useState('');
@@ -7,12 +7,12 @@ export default function Login() {
   const [errorMessage, setErrorMessage] = useState('');
   const navigate = useNavigate();
 
-  const handleSubmit = async (e) => {
-    e.preventDefault(); 
-    setErrorMessage(''); 
-    
+  const handleSubmit = async (event) => {
+    event.preventDefault();
+    setErrorMessage('');
+
     try {
-      const response = await fetch('http://localhost:3001/api/login', {
+      const response = await fetch('/api/login', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -23,51 +23,56 @@ export default function Login() {
       const data = await response.json();
 
       if (!response.ok) {
-        setErrorMessage(data.error); 
+        setErrorMessage(data.error || 'Login failed.');
         return;
       }
 
       localStorage.setItem('user', JSON.stringify(data.user));
-
-      navigate('/app');
-
+      navigate('/reader');
     } catch (error) {
-      console.error("Fetch error:", error);
+      console.error('Fetch error:', error);
       setErrorMessage('Could not connect to the server.');
     }
   };
 
   return (
-    <div className="login-wrapper">
-      <h2>Log In</h2>
-      
-      {errorMessage && <p style={{ color: 'red' }}>{errorMessage}</p>}
-      
-      <form onSubmit={handleSubmit}>
-        <div style={{ marginBottom: '10px' }}>
-          <label htmlFor="email">Email: </label>
-          <input 
-            type="email" 
-            id="email" 
-            value={email} 
-            onChange={(e) => setEmail(e.target.value)} 
-            required 
-          />
-        </div>
-        
-        <div style={{ marginBottom: '10px' }}>
-          <label htmlFor="password">Password: </label>
-          <input 
-            type="password" 
-            id="password" 
-            value={password} 
-            onChange={(e) => setPassword(e.target.value)} 
-            required 
-          />
-        </div>
-        
-        <button type="submit">Submit</button>
-      </form>
+    <div className="auth-shell">
+      <div className="auth-card">
+        <h2>Log in</h2>
+
+        {errorMessage && <p className="error-text">{errorMessage}</p>}
+
+        <form onSubmit={handleSubmit}>
+          <div className="field-group">
+            <label htmlFor="login-email">Email</label>
+            <input
+              id="login-email"
+              type="email"
+              value={email}
+              onChange={(event) => setEmail(event.target.value)}
+              required
+            />
+          </div>
+
+          <div className="field-group">
+            <label htmlFor="login-password">Password</label>
+            <input
+              id="login-password"
+              type="password"
+              value={password}
+              onChange={(event) => setPassword(event.target.value)}
+              required
+            />
+          </div>
+
+          <button type="submit" className="primary-btn full-width">Log in</button>
+        </form>
+
+        <p className="auth-switch">
+          Don&apos;t have an account?{' '}
+          <Link to="/register" className="text-link">Register</Link>
+        </p>
+      </div>
     </div>
   );
 }
