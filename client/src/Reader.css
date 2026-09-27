@@ -1,0 +1,73 @@
+.reader-page {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  flex: 1;
+  min-height: 0;
+  background: var(--bg);
+}
+
+.reader-content {
+  position: relative;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  min-height: 0;
+}
+
+#error-message {
+  margin: 1rem 1.5rem 0;
+  font-size: 0.9rem;
+  color: #b3261e;
+}
+
+#pagination-status {
+  position: absolute;
+  top: 0.75rem;
+  left: 50%;
+  transform: translateX(-50%);
+  margin: 0;
+  padding: 0.4rem 1rem;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.65);
+  color: #fff;
+  font-size: 0.85rem;
+  z-index: 1;
+  pointer-events: none;
+}
+
+#viewer {
+  flex: 1;
+  width: 100%;
+  min-height: 0;
+  background: var(--bg);
+  display: flex;
+  justify-content: center;
+}
+
+/* The clip element is deliberately sized narrower than #viewer (see
+   Reader.jsx's relayout) so the margin on either side is real empty space
+   outside it, not padding on the thing that scrolls -- padding only frames
+   a scroll container at its very start/end, since overflow clips at the
+   padding-box edge and scrolled-past content slides straight through it
+   everywhere in between. overflow-x/-y (rather than hidden on both) is
+   what makes this a real, natively-scrollable viewport onto the book's
+   full-sized iframe -- mouse wheel, trackpad, drag, and the scrollbar all
+   just work, since there's no JS-computed page position to fight against
+   anymore. relayout sets these per axis based on orientation every time it
+   runs (only one axis is ever meant to scroll -- a generic overflow:auto
+   on both invites a feedback loop where the *intended* scrollbar shrinks
+   clientHeight/Width by its own thickness, tipping the other axis into
+   showing one too); auto/hidden here is only the pre-JS fallback so nothing
+   scrolls in the wrong direction before that first relayout runs. */
+#viewer-clip {
+  overflow-x: auto;
+  overflow-y: hidden;
+}
+
+#viewer-clip iframe {
+  display: block;
+  height: 100%;
+  border: none;
+}
