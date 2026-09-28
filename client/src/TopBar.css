@@ -1,0 +1,40 @@
+.topbar {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-bottom: 1px solid var(--topbar-border);
+  background: var(--topbar-bg);
+  flex-shrink: 0;
+  padding: 0.5rem 1.5rem;
+}
+
+.topbar-logo {
+  font-size: 1.1rem;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  color: var(--topbar-text);
+}
+
+.topbar-actions {
+  display: flex;
+  gap: 0.75rem;
+}
+
+.topbar-btn {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.4rem 0.9rem;
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--topbar-text);
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 0.85rem;
+  font-family: inherit;
+  text-decoration: none;
+}
+
+.topbar-btn:hover {
+  background: rgba(255, 255, 255, 0.16);
+}

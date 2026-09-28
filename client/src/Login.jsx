@@ -28,7 +28,7 @@ export default function Login() {
       }
 
       localStorage.setItem('user', JSON.stringify(data.user));
-      navigate('/reader');
+      navigate('/bookshelf');
     } catch (error) {
       console.error('Fetch error:', error);
       setErrorMessage('Could not connect to the server.');
