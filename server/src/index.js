@@ -1,6 +1,8 @@
+import cookieParser from 'cookie-parser'
 import cors from 'cors'
 import 'dotenv/config'
 import express from 'express'
+import jwt from 'jsonwebtoken'
 import multer from 'multer'
 import { PrismaPg } from '@prisma/adapter-pg'
 import { PrismaClient } from './generated/prisma/client.ts'
@@ -8,6 +10,17 @@ import { hashPassword, verifyPassword } from './auth.js'
 
 const app = express()
 const port = process.env.PORT || 3001
+
+const SESSION_COOKIE = 'yomu_session'
+const SESSION_MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000 // 7 days
+
+const { JWT_SECRET } = process.env
+
+if (!JWT_SECRET) {
+  throw new Error(
+    'JWT_SECRET is not set. Add it to server/.env -- sessions cannot be signed without it.'
+  )
+}
 
 const adapter = new PrismaPg({
   connectionString: process.env.DATABASE_URL,
@@ -22,8 +35,14 @@ const upload = multer({
   },
 })
 
-app.use(cors())
+app.use(
+  cors({
+    origin: process.env.CLIENT_ORIGIN || 'http://localhost:5173',
+    credentials: true,
+  })
+)
 app.use(express.json())
+app.use(cookieParser())
 
 app.get('/', (req, res) => {
   res.json({
@@ -33,15 +52,49 @@ app.get('/', (req, res) => {
       '/api/health',
       '/api/login',
       '/api/register',
+      '/api/logout',
+      '/api/me',
       '/api/books',
       '/api/books/:id',
     ],
   })
 })
 
-// This expects the authentication system to set req.user.
-// Once the login ticket is connected, req.user.id should contain
-// the currently logged-in user's database ID.
+function issueSession(res, user) {
+  const token = jwt.sign({ sub: user.id, email: user.email }, JWT_SECRET, {
+    expiresIn: '7d',
+  })
+
+  res.cookie(SESSION_COOKIE, token, {
+    httpOnly: true,
+    sameSite: 'lax',
+    secure: process.env.NODE_ENV === 'production',
+    maxAge: SESSION_MAX_AGE_MS,
+  })
+}
+
+// Reads the session cookie set by /api/login and, if it's a valid,
+// unexpired token, attaches req.user for downstream routes. Anything
+// wrong with it (missing, expired, tampered) just leaves req.user unset --
+// requireUser is what turns that into a 401, so routes that don't need
+// a logged-in user can still use this to *optionally* know who's asking.
+function attachUser(req, res, next) {
+  const token = req.cookies?.[SESSION_COOKIE]
+
+  if (token) {
+    try {
+      const payload = jwt.verify(token, JWT_SECRET)
+      req.user = { id: payload.sub, email: payload.email }
+    } catch {
+      // Invalid or expired token -- treat the same as not logged in.
+    }
+  }
+
+  next()
+}
+
+app.use(attachUser)
+
 function requireUser(req, res, next) {
   if (!req.user?.id) {
     return res.status(401).json({
@@ -113,6 +166,8 @@ app.post('/api/login', async (req, res) => {
       return res.status(401).json({ error: 'Invalid email or password.' })
     }
 
+    issueSession(res, user)
+
     res.status(200).json({
       message: 'Login successful',
       user: { id: user.id, email: user.email },
@@ -121,6 +176,17 @@ app.post('/api/login', async (req, res) => {
     console.error('Login Error:', error)
     res.status(500).json({ error: 'Internal server error' })
   }
+})
+
+app.post('/api/logout', (req, res) => {
+  res.clearCookie(SESSION_COOKIE)
+  res.json({ message: 'Logged out' })
+})
+
+// Lets the client ask "who am I, if anyone" on load, instead of guessing
+// from whatever it last wrote to localStorage.
+app.get('/api/me', requireUser, (req, res) => {
+  res.json({ user: req.user })
 })
 
 // Save an EPUB to the logged-in user's account
