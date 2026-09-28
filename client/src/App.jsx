@@ -2,8 +2,6 @@ import { BrowserRouter, Routes, Route } from 'react-router-dom'
 import Login from './Login'
 import LandingPage from './LandingPage'
 import RegisterPage from './RegisterPage'
-import ReaderPage from './ReaderPage'
-import Library from './Library'
 import BookshelfApp from './BookshelfApp.jsx'
 
 function App() {
@@ -13,8 +11,6 @@ function App() {
         <Route path="/" element={<LandingPage />} />
         <Route path="/login" element={<Login />} />
         <Route path="/register" element={<RegisterPage />} />
-        <Route path="/reader" element={<ReaderPage />} />
-        <Route path="/library" element={<Library />} />
         <Route path="/bookshelf" element={<BookshelfApp />} />
       </Routes>
     </BrowserRouter>
