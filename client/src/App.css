@@ -1,0 +1,118 @@
+main {
+  width: 100%;
+  min-height: 100vh;
+  padding: 3rem;
+  box-sizing: border-box;
+  text-align: left;
+}
+
+.hero {
+  text-align: center;
+  margin-bottom: 3rem;
+}
+
+.hero h1 {
+  margin-bottom: 0.5rem;
+}
+
+.hero p {
+  color: var(--text);
+}
+
+.upload-card,
+.library {
+  width: min(800px, 100%);
+  margin: 0 auto 2rem;
+  padding: 1.5rem;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  box-sizing: border-box;
+}
+
+.upload-card h2,
+.library h2 {
+  margin-bottom: 1rem;
+}
+
+.upload-card input {
+  display: block;
+  margin-bottom: 1rem;
+}
+
+.selected-file {
+  margin-bottom: 1rem;
+}
+
+button {
+  border: 0;
+  border-radius: 8px;
+  padding: 0.65rem 1rem;
+  background: var(--accent);
+  color: white;
+  font: inherit;
+  cursor: pointer;
+}
+
+button:hover:not(:disabled) {
+  opacity: 0.9;
+}
+
+button:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+.secondary-button {
+  background: transparent;
+  border: 1px solid var(--border);
+  color: var(--text-h);
+}
+
+.message {
+  width: min(800px, 100%);
+  margin: 0 auto 2rem;
+  padding: 0.75rem 1rem;
+  border: 1px solid var(--accent-border);
+  border-radius: 8px;
+  background: var(--accent-bg);
+  box-sizing: border-box;
+}
+
+.library-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 1rem;
+}
+
+.book-grid {
+  display: grid;
+  gap: 1rem;
+}
+
+.book-card {
+  padding: 1rem;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
+
+.book-card h3 {
+  margin: 0 0 0.4rem;
+  color: var(--text-h);
+}
+
+.book-card p {
+  margin-bottom: 0.4rem;
+}
+
+.book-card small {
+  display: block;
+  margin-bottom: 1rem;
+}
+
+@media (max-width: 600px) {
+  main {
+    padding: 1.5rem;
+  }
+}
