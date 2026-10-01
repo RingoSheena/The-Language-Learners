@@ -4,6 +4,7 @@ import Reader from './Reader.jsx'
 import Settings from './Settings.jsx'
 import { addBook, deleteBook, getAllBooks, touchBook } from './db.js'
 import { extractCoverImage } from './epubCover.js'
+import { validateEpub } from './epubValidate.js'
 
 function BookshelfApp() {
   const [view, setView] = useState('bookshelf') // 'bookshelf' | 'reader' | 'settings'
@@ -14,7 +15,10 @@ function BookshelfApp() {
   useEffect(() => {
     getAllBooks()
       .then(setBooks)
-      .catch((error) => console.error('Failed to load bookshelf:', error))
+      .catch((error) => {
+        console.error('Failed to load bookshelf:', error)
+        setUploadError('Unable to load your uploaded books.')
+      })
   }, [])
 
   const handleUpload = async (file) => {
@@ -29,18 +33,34 @@ function BookshelfApp() {
 
     setUploadError('')
 
-    const data = await file.arrayBuffer()
-    const coverImage = await extractCoverImage(data)
-    const book = {
-      id: crypto.randomUUID(),
-      name: file.name.replace(/\.epub$/i, ''),
-      addedAt: Date.now(),
-      data,
-      coverImage,
-    }
+    try {
+      const data = await file.arrayBuffer()
 
-    await addBook(book)
-    setBooks((prev) => [...prev, book])
+      try {
+        await validateEpub(data.slice(0))
+      } catch (error) {
+        console.error('Failed to parse EPUB:', error)
+        setUploadError(
+          `Unable to open "${file.name}". The file may be corrupted or not a valid EPUB.`
+        )
+        return
+      }
+
+      const coverImage = await extractCoverImage(data.slice(0))
+      const book = {
+        id: crypto.randomUUID(),
+        name: file.name.replace(/\.epub$/i, ''),
+        addedAt: Date.now(),
+        data,
+        coverImage,
+      }
+
+      await addBook(book)
+      setBooks((prev) => [...prev, book])
+    } catch (error) {
+      console.error('Failed to upload book:', error)
+      setUploadError(`Unable to add "${file.name}" to your bookshelf.`)
+    }
   }
 
   const handleOpenBook = (id) => {
