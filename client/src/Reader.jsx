@@ -3,6 +3,8 @@ import TopBar from './TopBar.jsx'
 import ReadingSettingsPanel from './ReadingSettingsPanel.jsx'
 import { loadPreferences, savePreferences } from './readingPreferences.js'
 import { flattenBook } from './epubFlatten.js'
+import { useJapaneseHover, useHoverToggle } from './hooks/useJapaneseHover.js' // NEW
+import DefinitionPopup from './components/DefinitionPopup.jsx' // NEW
 import './Reader.css'
 
 // No pagination at all: the browser's own text layout wraps everything
@@ -54,6 +56,8 @@ function buildDynamicStyle(preferences) {
       padding: 32px 0;
     }
     img { max-width: 100%; max-height: 100%; }
+    /* NEW: hover highlight for the word under the cursor (see useJapaneseHover) */
+    ::highlight(jp-token) { background: #ffe066; color: #000; }
     /* If the book's own CSS resets display on ruby/rt/rb (a common old-
        browser-compat pattern some EPUB stylesheets carry, e.g. treating
        them as plain inline elements for engines that don't understand
@@ -276,6 +280,12 @@ function Reader({ book, onBack }) {
     pageTurnHandlerRef.current = createPageTurnHandler(clipRef, isSettingsOpenRef)
   }
 
+  // NEW: hover-to-define. hoverOn is the "Definitions: On/Off" switch;
+  // popup is what <DefinitionPopup> renders; attach() wires the hover
+  // listeners into the iframe's document each time it loads.
+  const [hoverOn, setHoverOn] = useHoverToggle()
+  const { popup, attach } = useJapaneseHover(iframeRef, { enabled: hoverOn })
+
   useEffect(() => {
     // StrictMode runs this effect, then its cleanup, then the effect again
     // (mount -> cleanup -> mount) specifically to catch effects that
@@ -411,6 +421,8 @@ function Reader({ book, onBack }) {
     // See createPageTurnHandler: focus inside the iframe needs its own
     // listener since keydown there won't bubble to the parent window.
     iframeRef.current?.contentWindow?.addEventListener('keydown', pageTurnHandlerRef.current)
+    // NEW: start hover highlighting / definitions inside the freshly loaded iframe.
+    attach(iframeRef.current)
   }
 
   const handlePreferencesChange = (next) => {
@@ -434,6 +446,10 @@ function Reader({ book, onBack }) {
         </button>
         <button className="topbar-btn" onClick={handleToggleFullscreen}>
           {isFullscreen ? 'Exit fullscreen' : 'Fullscreen'}
+        </button>
+        {/* NEW: turn hover definitions on/off */}
+        <button className="topbar-btn" onClick={() => setHoverOn(!hoverOn)}>
+          Definitions: {hoverOn ? 'On' : 'Off'}
         </button>
         <button className="topbar-btn" onClick={() => setIsSettingsOpen((open) => !open)}>
           Settings
@@ -465,6 +481,9 @@ function Reader({ book, onBack }) {
             onClose={() => setIsSettingsOpen(false)}
           />
         )}
+
+        {/* NEW: the definition popup (word, reading, meaning, frequency) */}
+        <DefinitionPopup popup={popup} />
       </div>
     </div>
   )
