@@ -5,7 +5,7 @@ Yomu — Japanese Reading & Flashcard Suite
 ## Stack
 
 - `client/` — React + Vite frontend
-- `server/` — Node.js + Express API, Prisma ORM, PostgreSQL
+- `server/` — Node.js + Express API, Prisma ORM, SQLite
 
 ## Getting started
 
@@ -22,7 +22,7 @@ npm run dev
 ```
 cd server
 npm install
-cp .env.example .env   # then point DATABASE_URL at your local Postgres
+cp .env.example .env
 npx prisma migrate dev
 npm run dev
 ```
