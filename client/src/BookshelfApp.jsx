@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import Bookshelf from './Bookshelf.jsx'
 import Reader from './Reader.jsx'
 import Settings from './Settings.jsx'
@@ -8,6 +9,7 @@ import { extractCoverImage } from './epubCover.js'
 import { validateEpub } from './epubValidate.js'
 
 function BookshelfApp() {
+  const navigate = useNavigate()
   const [view, setView] = useState('bookshelf')
   const [books, setBooks] = useState([])
   const [activeBookId, setActiveBookId] = useState(null)
@@ -86,6 +88,17 @@ function BookshelfApp() {
     setBooks((prev) => prev.filter((book) => book.id !== id))
   }
 
+  const handleLogout = async () => {
+    try {
+      await fetch('/api/logout', { method: 'POST' })
+    } catch (error) {
+      console.error('Logout error:', error)
+    } finally {
+      localStorage.removeItem('user')
+      navigate('/login')
+    }
+  }
+
   const activeBook = books.find((book) => book.id === activeBookId) ?? null
 
   if (view === 'reader' && activeBook) {
@@ -111,6 +124,7 @@ function BookshelfApp() {
       onDeleteBook={handleDeleteBook}
       onOpenSettings={() => setView('settings')}
       onOpenFlashcards={() => setView('flashcards')}
+      onLogout={handleLogout}
     />
   )
 }

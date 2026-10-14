@@ -10,6 +10,7 @@ function Bookshelf({
   onOpenSettings,
   onOpenFlashcards,
   onDeleteBook,
+  onLogout,
 }) {
   const [isDragging, setIsDragging] = useState(false)
   const dragCounter = useRef(0)
@@ -81,6 +82,10 @@ function Bookshelf({
 
         <button className="topbar-btn" onClick={onOpenSettings}>
           Settings
+        </button>
+
+        <button type="button" className="topbar-btn" onClick={onLogout}>
+          Log out
         </button>
       </TopBar>
 
