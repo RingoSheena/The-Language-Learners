@@ -3,6 +3,7 @@ import Login from './Login'
 import LandingPage from './LandingPage'
 import RegisterPage from './RegisterPage'
 import BookshelfApp from './BookshelfApp.jsx'
+import Flashcards from './components/Flashcards.jsx'
 
 function App() {
   return (
@@ -12,6 +13,7 @@ function App() {
         <Route path="/login" element={<Login />} />
         <Route path="/register" element={<RegisterPage />} />
         <Route path="/bookshelf" element={<BookshelfApp />} />
+        <Route path="/flashcards" element={<Flashcards />} />
       </Routes>
     </BrowserRouter>
   )

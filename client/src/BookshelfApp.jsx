@@ -2,12 +2,13 @@ import { useEffect, useState } from 'react'
 import Bookshelf from './Bookshelf.jsx'
 import Reader from './Reader.jsx'
 import Settings from './Settings.jsx'
+import Flashcards from './components/Flashcards.jsx'
 import { addBook, deleteBook, getAllBooks, touchBook } from './db.js'
 import { extractCoverImage } from './epubCover.js'
 import { validateEpub } from './epubValidate.js'
 
 function BookshelfApp() {
-  const [view, setView] = useState('bookshelf') // 'bookshelf' | 'reader' | 'settings'
+  const [view, setView] = useState('bookshelf')
   const [books, setBooks] = useState([])
   const [activeBookId, setActiveBookId] = useState(null)
   const [uploadError, setUploadError] = useState('')
@@ -65,12 +66,17 @@ function BookshelfApp() {
 
   const handleOpenBook = (id) => {
     const lastOpenedAt = Date.now()
+
     setBooks((prev) =>
-      prev.map((book) => (book.id === id ? { ...book, lastOpenedAt } : book))
+      prev.map((book) =>
+        book.id === id ? { ...book, lastOpenedAt } : book
+      )
     )
+
     touchBook(id, lastOpenedAt).catch((error) =>
       console.error('Failed to record last-opened time:', error)
     )
+
     setActiveBookId(id)
     setView('reader')
   }
@@ -92,6 +98,10 @@ function BookshelfApp() {
     return <Settings onBack={() => setView('bookshelf')} />
   }
 
+  if (view === 'flashcards') {
+    return <Flashcards onBack={() => setView('bookshelf')} />
+  }
+
   return (
     <Bookshelf
       books={books}
@@ -100,6 +110,7 @@ function BookshelfApp() {
       onOpenBook={handleOpenBook}
       onDeleteBook={handleDeleteBook}
       onOpenSettings={() => setView('settings')}
+      onOpenFlashcards={() => setView('flashcards')}
     />
   )
 }
