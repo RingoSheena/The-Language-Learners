@@ -8,6 +8,7 @@ function Bookshelf({
   onUpload,
   onOpenBook,
   onOpenSettings,
+  onOpenFlashcards,
   onDeleteBook,
 }) {
   const [isDragging, setIsDragging] = useState(false)
@@ -16,7 +17,9 @@ function Bookshelf({
   const sortedBooks = useMemo(
     () =>
       [...books].sort(
-        (a, b) => (b.lastOpenedAt ?? b.addedAt ?? 0) - (a.lastOpenedAt ?? a.addedAt ?? 0)
+        (a, b) =>
+          (b.lastOpenedAt ?? b.addedAt ?? 0) -
+          (a.lastOpenedAt ?? a.addedAt ?? 0)
       ),
     [books]
   )
@@ -25,9 +28,7 @@ function Bookshelf({
     const file = event.target.files[0]
     event.target.value = ''
 
-    if (file) {
-      onUpload(file)
-    }
+    if (file) onUpload(file)
   }
 
   const handleDragEnter = (event) => {
@@ -43,6 +44,7 @@ function Bookshelf({
   const handleDragLeave = (event) => {
     event.preventDefault()
     dragCounter.current -= 1
+
     if (dragCounter.current <= 0) {
       dragCounter.current = 0
       setIsDragging(false)
@@ -55,9 +57,7 @@ function Bookshelf({
     setIsDragging(false)
 
     const file = event.dataTransfer.files[0]
-    if (file) {
-      onUpload(file)
-    }
+    if (file) onUpload(file)
   }
 
   return (
@@ -66,6 +66,7 @@ function Bookshelf({
         <label htmlFor="epub-upload" className="topbar-btn">
           Upload book
         </label>
+
         <input
           type="file"
           id="epub-upload"
@@ -73,6 +74,11 @@ function Bookshelf({
           hidden
           onChange={handleFileChange}
         />
+
+        <button className="topbar-btn" onClick={onOpenFlashcards}>
+          Flashcards
+        </button>
+
         <button className="topbar-btn" onClick={onOpenSettings}>
           Settings
         </button>
@@ -113,6 +119,7 @@ function Bookshelf({
                 >
                   ×
                 </button>
+
                 <button
                   type="button"
                   className="book-open-btn"
@@ -130,6 +137,7 @@ function Bookshelf({
                       📖
                     </span>
                   )}
+
                   <span className="book-title">{book.name}</span>
                 </button>
               </div>
