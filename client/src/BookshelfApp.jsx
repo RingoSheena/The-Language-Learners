@@ -1,21 +1,30 @@
 import { useEffect, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import Bookshelf from './Bookshelf.jsx'
 import Reader from './Reader.jsx'
 import Settings from './Settings.jsx'
 import Flashcards from './components/Flashcards.jsx'
-import { addBook, deleteBook, getAllBooks, touchBook } from './db.js'
+import { forgetSavedWords } from './lib/flashcardsApi.js'
+import {
+  deleteBook,
+  downloadBook,
+  listBooks,
+  touchBook,
+  uploadBook,
+} from './lib/booksApi.js'
 import { extractCoverImage } from './epubCover.js'
 import { validateEpub } from './epubValidate.js'
 import { removeReadingState } from './readingState.js'
 
 function BookshelfApp() {
+  const navigate = useNavigate()
   const [view, setView] = useState('bookshelf')
   const [books, setBooks] = useState([])
-  const [activeBookId, setActiveBookId] = useState(null)
+  const [activeBook, setActiveBook] = useState(null)
   const [uploadError, setUploadError] = useState('')
 
   useEffect(() => {
-    getAllBooks()
+    listBooks()
       .then(setBooks)
       .catch((error) => {
         console.error('Failed to load bookshelf:', error)
@@ -49,15 +58,12 @@ function BookshelfApp() {
       }
 
       const coverImage = await extractCoverImage(data.slice(0))
-      const book = {
-        id: crypto.randomUUID(),
-        name: file.name.replace(/\.epub$/i, ''),
-        addedAt: Date.now(),
-        data,
+      const book = await uploadBook({
+        file,
+        title: file.name.replace(/\.epub$/i, ''),
         coverImage,
-      }
+      })
 
-      await addBook(book)
       setBooks((prev) => [...prev, book])
     } catch (error) {
       console.error('Failed to upload book:', error)
@@ -65,12 +71,26 @@ function BookshelfApp() {
     }
   }
 
-  const handleOpenBook = (id) => {
+  const handleOpenBook = async (id) => {
+    const book = books.find((item) => item.id === id)
+    if (!book) return
+
+    setUploadError('')
+
+    let data
+    try {
+      data = await downloadBook(id)
+    } catch (error) {
+      console.error('Failed to download book:', error)
+      setUploadError(`Unable to open "${book.name}".`)
+      return
+    }
+
     const lastOpenedAt = Date.now()
 
     setBooks((prev) =>
-      prev.map((book) =>
-        book.id === id ? { ...book, lastOpenedAt } : book
+      prev.map((item) =>
+        item.id === id ? { ...item, lastOpenedAt } : item
       )
     )
 
@@ -78,21 +98,43 @@ function BookshelfApp() {
       console.error('Failed to record last-opened time:', error)
     )
 
-    setActiveBookId(id)
+    setActiveBook({ ...book, lastOpenedAt, data })
     setView('reader')
   }
 
   const handleDeleteBook = async (id) => {
-    await deleteBook(id)
+    try {
+      await deleteBook(id)
+    } catch (error) {
+      console.error('Failed to delete book:', error)
+      setUploadError('Unable to delete that book.')
+      return
+    }
+
     removeReadingState(id)
     setBooks((prev) => prev.filter((book) => book.id !== id))
   }
 
-  const activeBook = books.find((book) => book.id === activeBookId) ?? null
+  const handleLogout = async () => {
+    try {
+      await fetch('/api/logout', { method: 'POST' })
+    } catch (error) {
+      console.error('Logout error:', error)
+    } finally {
+      localStorage.removeItem('user')
+      forgetSavedWords()
+      navigate('/login', { replace: true })
+    }
+  }
+
+  const closeReader = () => {
+    setActiveBook(null)
+    setView('bookshelf')
+  }
 
   if (view === 'reader' && activeBook) {
     return (
-      <Reader key={activeBook.id} book={activeBook} onBack={() => setView('bookshelf')} />
+      <Reader key={activeBook.id} book={activeBook} onBack={closeReader} />
     )
   }
 
@@ -113,6 +155,7 @@ function BookshelfApp() {
       onDeleteBook={handleDeleteBook}
       onOpenSettings={() => setView('settings')}
       onOpenFlashcards={() => setView('flashcards')}
+      onLogout={handleLogout}
     />
   )
 }

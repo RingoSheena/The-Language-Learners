@@ -17,6 +17,21 @@ model User {
   createdAt    DateTime @default(now())
 
   books        Book[]
+  flashcards   Flashcard[]
+}
+
+model Flashcard {
+  id         String   @id @default(uuid())
+  japanese   String
+  reading    String   @default("")
+  definition String
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  userId     String
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, japanese])
 }
 
 model Book {
@@ -24,7 +39,10 @@ model Book {
   title     String
   fileName  String
   data      Bytes
-  createdAt DateTime @default(now())
+  // Data URL of the first image in the EPUB, extracted by the client
+  coverImage   String?
+  createdAt    DateTime  @default(now())
+  lastOpenedAt DateTime?
 
   userId    String
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
