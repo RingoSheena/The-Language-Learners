@@ -125,3 +125,146 @@
   font-size: 15px;
   color: #222;
 }
+
+.flashcard-practice-start {
+  margin-top: 8px;
+  padding: 8px 16px;
+  border: 1px solid #2a7a4b;
+  border-radius: 6px;
+  background: #2a7a4b;
+  color: white;
+  cursor: pointer;
+}
+
+.flashcards-practice-page {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+.flashcards-practice {
+  width: min(100% - 32px, 640px);
+  margin: 0 auto;
+  padding: 32px 0;
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  justify-content: center;
+}
+
+.flashcard-progress {
+  margin: 0 0 12px;
+  color: #777;
+  text-align: center;
+}
+
+.flashcard-practice-card {
+  min-height: 320px;
+}
+
+.flashcard-practice-actions {
+  display: flex;
+  gap: 12px;
+  margin-top: 16px;
+}
+
+.flashcard-practice-actions button {
+  flex: 1;
+  padding: 12px;
+  border: 1px solid;
+  border-radius: 6px;
+  color: white;
+  cursor: pointer;
+  font: inherit;
+}
+
+.flashcard-practice-fail {
+  border-color: #b33 !important;
+  background: #b33;
+}
+
+.flashcard-practice-pass {
+  border-color: #2a7a4b !important;
+  background: #2a7a4b;
+}
+
+.flashcard-hotkey-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 10;
+  display: grid;
+  place-items: center;
+  padding: 16px;
+  background: rgba(0, 0, 0, 0.48);
+}
+
+.flashcard-hotkey-dialog {
+  width: min(100%, 380px);
+  padding: 24px;
+  border: 1px solid #ddd;
+  border-radius: 8px;
+  background: white;
+  color: #222;
+  box-shadow: 0 8px 28px rgba(0, 0, 0, 0.2);
+}
+
+.flashcard-hotkey-dialog h2 {
+  margin: 0 0 20px;
+  font-size: 20px;
+}
+
+.flashcard-hotkey-dialog form {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.flashcard-hotkey-dialog label {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.flashcard-hotkey-dialog input {
+  width: 52px;
+  padding: 8px;
+  border: 1px solid #bbb;
+  border-radius: 4px;
+  color: #222;
+  font: inherit;
+  text-align: center;
+  text-transform: uppercase;
+}
+
+.flashcard-hotkey-error {
+  margin: 0;
+  color: #b22;
+  font-size: 14px;
+}
+
+.flashcard-hotkey-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.flashcard-hotkey-actions button {
+  padding: 8px 12px;
+  border: 1px solid #bbb;
+  border-radius: 4px;
+  background: white;
+  color: #222;
+  cursor: pointer;
+  font: inherit;
+}
+
+.flashcard-hotkey-actions .flashcard-hotkey-reset {
+  margin-right: auto;
+}
+
+.flashcard-hotkey-actions .flashcard-hotkey-save {
+  border-color: #2a7a4b;
+  background: #2a7a4b;
+  color: white;
+}
