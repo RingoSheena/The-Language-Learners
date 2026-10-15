@@ -30,8 +30,13 @@ const prisma = new PrismaClient({ adapter })
 
 const upload = multer({
   storage: multer.memoryStorage(),
+  // Browsers send file names as UTF-8; the default (latin1) garbles
+  // Japanese titles like 猫.epub.
+  defParamCharset: 'utf8',
   limits: {
     fileSize: 25 * 1024 * 1024,
+    // The cover image arrives as a base64 data URL text field
+    fieldSize: 10 * 1024 * 1024,
   },
 })
 
@@ -191,6 +196,17 @@ app.get('/api/me', requireUser, (req, res) => {
   res.json({ user: req.user })
 })
 
+// Everything about a book except the EPUB file itself, which is only
+// sent when the book is opened (GET /api/books/:id)
+const BOOK_FIELDS = {
+  id: true,
+  title: true,
+  fileName: true,
+  coverImage: true,
+  createdAt: true,
+  lastOpenedAt: true,
+}
+
 // Save an EPUB to the logged-in user's account
 app.post(
   '/api/books',
@@ -223,14 +239,12 @@ app.post(
           title,
           fileName: req.file.originalname,
           data: req.file.buffer,
+          coverImage: req.body.coverImage?.startsWith('data:image/')
+            ? req.body.coverImage
+            : null,
           userId: req.user.id,
         },
-        select: {
-          id: true,
-          title: true,
-          fileName: true,
-          createdAt: true,
-        },
+        select: BOOK_FIELDS,
       })
 
       res.status(201).json(book)
@@ -251,12 +265,7 @@ app.get('/api/books', requireUser, async (req, res) => {
       where: {
         userId: req.user.id,
       },
-      select: {
-        id: true,
-        title: true,
-        fileName: true,
-        createdAt: true,
-      },
+      select: BOOK_FIELDS,
       orderBy: {
         createdAt: 'desc',
       },
@@ -291,7 +300,9 @@ app.get('/api/books/:id', requireUser, async (req, res) => {
     res.setHeader('Content-Type', 'application/epub+zip')
     res.setHeader(
       'Content-Disposition',
-      `inline; filename="${book.fileName}"`
+      // filename* carries non-ASCII (e.g. Japanese) names; Node rejects
+      // raw non-ASCII characters in headers.
+      `inline; filename="book.epub"; filename*=UTF-8''${encodeURIComponent(book.fileName)}`
     )
 
     res.send(Buffer.from(book.data))
@@ -301,6 +312,67 @@ app.get('/api/books/:id', requireUser, async (req, res) => {
     res.status(500).json({
       error: 'The book could not be loaded.',
     })
+  }
+})
+
+// Rename a book, or record that it was just opened
+app.patch('/api/books/:id', requireUser, async (req, res) => {
+  try {
+    const data = {}
+
+    if (req.body.title !== undefined) {
+      data.title = String(req.body.title).trim()
+
+      if (!data.title) {
+        return res.status(400).json({ error: 'A book needs a title.' })
+      }
+    }
+
+    if (req.body.lastOpenedAt !== undefined) {
+      data.lastOpenedAt = new Date(req.body.lastOpenedAt)
+
+      if (Number.isNaN(data.lastOpenedAt.getTime())) {
+        return res.status(400).json({ error: 'Invalid lastOpenedAt date.' })
+      }
+    }
+
+    const owned = await prisma.book.findFirst({
+      where: { id: req.params.id, userId: req.user.id },
+      select: { id: true },
+    })
+
+    if (!owned) {
+      return res.status(404).json({ error: 'Book not found.' })
+    }
+
+    const book = await prisma.book.update({
+      where: { id: owned.id },
+      data,
+      select: BOOK_FIELDS,
+    })
+
+    res.json(book)
+  } catch (error) {
+    console.error('Unable to update book:', error)
+    res.status(500).json({ error: 'The book could not be updated.' })
+  }
+})
+
+// Remove a book from the logged-in user's library
+app.delete('/api/books/:id', requireUser, async (req, res) => {
+  try {
+    const { count } = await prisma.book.deleteMany({
+      where: { id: req.params.id, userId: req.user.id },
+    })
+
+    if (count === 0) {
+      return res.status(404).json({ error: 'Book not found.' })
+    }
+
+    res.status(204).end()
+  } catch (error) {
+    console.error('Unable to delete book:', error)
+    res.status(500).json({ error: 'The book could not be deleted.' })
   }
 })
 
