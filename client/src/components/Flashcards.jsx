@@ -49,6 +49,7 @@ export default function Flashcards({ onBack }) {
   const [hotkeySettingsOpen, setHotkeySettingsOpen] = useState(false)
   const [hotkeyDraft, setHotkeyDraft] = useState(DEFAULT_PRACTICE_HOTKEYS)
   const [hotkeyError, setHotkeyError] = useState('')
+  const [practiceFeedback, setPracticeFeedback] = useState(null)
 
   useEffect(() => {
     listFlashcards()
@@ -74,6 +75,13 @@ export default function Flashcards({ onBack }) {
       // Hotkeys still work for this session when storage is unavailable.
     }
   }, [practiceHotkeys])
+
+  useEffect(() => {
+    if (!practiceFeedback) return
+
+    const timeoutId = window.setTimeout(() => setPracticeFeedback(null), 1400)
+    return () => window.clearTimeout(timeoutId)
+  }, [practiceFeedback])
 
   async function removeCard(id) {
     if (
@@ -126,14 +134,21 @@ export default function Flashcards({ onBack }) {
     setPracticeCards(orderedCards)
     setPracticeIndex(0)
     setPracticeFlipped(false)
+    setPracticeFeedback(null)
   }
 
-  const advancePractice = useCallback(() => {
+  const advancePractice = useCallback((result) => {
+    setPracticeFeedback(result)
     setPracticeIndex((index) =>
       index === null || index >= practiceCards.length - 1 ? null : index + 1
     )
     setPracticeFlipped(false)
   }, [practiceCards.length])
+
+  function exitPractice() {
+    setPracticeFeedback(null)
+    setPracticeIndex(null)
+  }
 
   function openHotkeySettings() {
     setHotkeyDraft({ ...practiceHotkeys })
@@ -173,9 +188,12 @@ export default function Flashcards({ onBack }) {
       }
 
       const key = event.key.toUpperCase()
-      if (key === practiceHotkeys.fail || key === practiceHotkeys.pass) {
+      if (key === practiceHotkeys.fail) {
         event.preventDefault()
-        advancePractice()
+        advancePractice('fail')
+      } else if (key === practiceHotkeys.pass) {
+        event.preventDefault()
+        advancePractice('pass')
       }
     }
 
@@ -194,13 +212,22 @@ export default function Flashcards({ onBack }) {
           </button>
           <button
             className="topbar-btn"
-            onClick={() => setPracticeIndex(null)}
+            onClick={exitPractice}
           >
             Exit practice
           </button>
         </TopBar>
 
         <main className="flashcards-practice">
+          {practiceFeedback && (
+            <p
+              className={`flashcard-practice-feedback flashcard-practice-feedback-${practiceFeedback}`}
+              role="status"
+              aria-live="polite"
+            >
+              {practiceFeedback === 'pass' ? 'Passed' : 'Failed'}
+            </p>
+          )}
           <p className="flashcard-progress">
             Card {practiceIndex + 1} of {practiceCards.length}
           </p>
@@ -222,13 +249,13 @@ export default function Flashcards({ onBack }) {
           <div className="flashcard-practice-actions">
             <button
               className="flashcard-practice-fail"
-              onClick={advancePractice}
+              onClick={() => advancePractice('fail')}
             >
               Fail
             </button>
             <button
               className="flashcard-practice-pass"
-              onClick={advancePractice}
+              onClick={() => advancePractice('pass')}
             >
               Pass
             </button>
@@ -309,6 +336,15 @@ export default function Flashcards({ onBack }) {
   return (
     <div style={{ padding: 24 }}>
       {onBack && <button onClick={onBack}>← Back to Bookshelf</button>}
+      {practiceFeedback && (
+        <p
+          className={`flashcard-practice-feedback flashcard-practice-feedback-${practiceFeedback}`}
+          role="status"
+          aria-live="polite"
+        >
+          {practiceFeedback === 'pass' ? 'Passed' : 'Marked failed'}
+        </p>
+      )}
 
       <h1>My Flashcards</h1>
       <p>Click a card to reveal its definition.</p>

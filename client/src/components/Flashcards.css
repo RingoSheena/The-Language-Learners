@@ -188,6 +188,27 @@
   background: #2a7a4b;
 }
 
+.flashcard-practice-feedback {
+  margin: 0 0 12px;
+  padding: 10px 14px;
+  border: 1px solid;
+  border-radius: 6px;
+  text-align: center;
+  font-weight: 600;
+}
+
+.flashcard-practice-feedback-pass {
+  border-color: #2a7a4b;
+  background: #edf7f0;
+  color: #205f3a;
+}
+
+.flashcard-practice-feedback-fail {
+  border-color: #b33;
+  background: #fff0f0;
+  color: #922;
+}
+
 .flashcard-hotkey-backdrop {
   position: fixed;
   inset: 0;
