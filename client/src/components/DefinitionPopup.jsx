@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { createFlashcard, getSavedWords } from '../lib/flashcardsApi.js'
 
 const box = {
   position: 'fixed',
@@ -23,9 +24,27 @@ const clip = (s, n = 300) =>
 export default function DefinitionPopup({ popup }) {
   const [saved, setSaved] = useState(false)
 
+  const word = popup?.info?.word ?? popup?.text
+
   useEffect(() => {
+    let cancelled = false
     setSaved(false)
-  }, [popup?.info?.word, popup?.text])
+
+    if (word) {
+      getSavedWords()
+        .then((words) => {
+          if (!cancelled) setSaved(words.has(word))
+        })
+        .catch(() => {
+          // Not logged in or offline -- leave the button enabled and
+          // let saveFlashcard report the problem if they click it.
+        })
+    }
+
+    return () => {
+      cancelled = true
+    }
+  }, [word])
 
   if (!popup) return null
 
@@ -70,52 +89,33 @@ export default function DefinitionPopup({ popup }) {
         .join('\n')
     : 'No definition found.'
 
-  function saveFlashcard() {
+  async function saveFlashcard() {
     try {
-      const cards = JSON.parse(
-        localStorage.getItem('flashcards') || '[]'
-      )
-
-      const alreadySaved = cards.some(
-        (card) => card.japanese === japanese
-      )
-
-      if (alreadySaved) {
-        setSaved(true)
-        alert('This flashcard is already saved.')
-        return
-      }
-
-      cards.push({
-        id: crypto.randomUUID(),
+      await createFlashcard({
         japanese,
         reading: readings.join('、 '),
         definition,
       })
 
-      localStorage.setItem('flashcards', JSON.stringify(cards))
-
       setSaved(true)
       alert('Flashcard created!')
     } catch (error) {
+      if (error.status === 409) {
+        setSaved(true)
+        alert('This flashcard is already saved.')
+        return
+      }
+
       console.error('Failed to save flashcard:', error)
-      alert('Unable to create flashcard.')
+      alert(
+        error.status === 401
+          ? 'Please log in to save flashcards.'
+          : 'Unable to create flashcard.'
+      )
     }
   }
 
-  const isAlreadySaved =
-    saved ||
-    (() => {
-      try {
-        const cards = JSON.parse(
-          localStorage.getItem('flashcards') || '[]'
-        )
-
-        return cards.some((card) => card.japanese === japanese)
-      } catch {
-        return false
-      }
-    })()
+  const isAlreadySaved = saved
 
   return (
     <div

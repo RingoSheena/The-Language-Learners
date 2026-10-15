@@ -70,3 +70,58 @@
   margin-top: 24px;
   color: #777;
 }
+.flashcard-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.flashcard-actions > button {
+  flex: 1;
+  padding: 8px 12px;
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.flashcard-edit-btn,
+.flashcard-actions > button[type='button'] {
+  border: 1px solid #bbb;
+  background: white;
+  color: #222;
+}
+
+.flashcard-edit-btn:hover,
+.flashcard-actions > button[type='button']:hover {
+  background: #f2f2f2;
+}
+
+.flashcard-save {
+  border: 1px solid #2a7a4b;
+  background: #2a7a4b;
+  color: white;
+}
+
+.flashcard-edit {
+  padding: 16px;
+  border: 1px solid #ddd;
+  border-radius: 12px;
+  background: white;
+  color: #222;
+}
+
+.flashcard-edit label {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 12px;
+  color: #777;
+}
+
+.flashcard-edit input,
+.flashcard-edit textarea {
+  padding: 6px 8px;
+  border: 1px solid #ccc;
+  border-radius: 6px;
+  font: inherit;
+  font-size: 15px;
+  color: #222;
+}

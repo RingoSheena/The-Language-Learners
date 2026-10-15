@@ -4,6 +4,7 @@ import Bookshelf from './Bookshelf.jsx'
 import Reader from './Reader.jsx'
 import Settings from './Settings.jsx'
 import Flashcards from './components/Flashcards.jsx'
+import { forgetSavedWords } from './lib/flashcardsApi.js'
 import { addBook, deleteBook, getAllBooks, touchBook } from './db.js'
 import { extractCoverImage } from './epubCover.js'
 import { validateEpub } from './epubValidate.js'
@@ -97,7 +98,8 @@ function BookshelfApp() {
       console.error('Logout error:', error)
     } finally {
       localStorage.removeItem('user')
-      navigate('/login')
+      forgetSavedWords()
+      navigate('/login', { replace: true })
     }
   }
 

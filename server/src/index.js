@@ -56,6 +56,8 @@ app.get('/', (req, res) => {
       '/api/me',
       '/api/books',
       '/api/books/:id',
+      '/api/flashcards',
+      '/api/flashcards/:id',
     ],
   })
 })
@@ -98,7 +100,7 @@ app.use(attachUser)
 function requireUser(req, res, next) {
   if (!req.user?.id) {
     return res.status(401).json({
-      error: 'You must be logged in to access your books.',
+      error: 'You must be logged in to do that.',
     })
   }
 
@@ -299,6 +301,138 @@ app.get('/api/books/:id', requireUser, async (req, res) => {
     res.status(500).json({
       error: 'The book could not be loaded.',
     })
+  }
+})
+
+const FLASHCARD_FIELDS = {
+  id: true,
+  japanese: true,
+  reading: true,
+  definition: true,
+  createdAt: true,
+  updatedAt: true,
+}
+
+// Pulls the editable flashcard fields out of a request body as trimmed
+// strings, leaving out anything the client didn't send so PATCH can
+// update one field without blanking the others.
+function readFlashcardFields(body = {}) {
+  const fields = {}
+
+  for (const key of ['japanese', 'reading', 'definition']) {
+    if (body[key] !== undefined) {
+      fields[key] = String(body[key]).trim()
+    }
+  }
+
+  return fields
+}
+
+// Get the logged-in user's flashcards
+app.get('/api/flashcards', requireUser, async (req, res) => {
+  try {
+    const flashcards = await prisma.flashcard.findMany({
+      where: { userId: req.user.id },
+      select: FLASHCARD_FIELDS,
+      orderBy: { createdAt: 'desc' },
+    })
+
+    res.json(flashcards)
+  } catch (error) {
+    console.error('Unable to load flashcards:', error)
+    res.status(500).json({ error: 'Your flashcards could not be loaded.' })
+  }
+})
+
+// Save a new flashcard to the logged-in user's account
+app.post('/api/flashcards', requireUser, async (req, res) => {
+  try {
+    const { japanese, reading = '', definition } = readFlashcardFields(req.body)
+
+    if (!japanese || !definition) {
+      return res.status(400).json({
+        error: 'A flashcard needs both a Japanese word and a definition.',
+      })
+    }
+
+    const existing = await prisma.flashcard.findUnique({
+      where: { userId_japanese: { userId: req.user.id, japanese } },
+      select: FLASHCARD_FIELDS,
+    })
+
+    if (existing) {
+      return res.status(409).json({
+        error: 'This flashcard is already saved.',
+        flashcard: existing,
+      })
+    }
+
+    const flashcard = await prisma.flashcard.create({
+      data: { japanese, reading, definition, userId: req.user.id },
+      select: FLASHCARD_FIELDS,
+    })
+
+    res.status(201).json(flashcard)
+  } catch (error) {
+    console.error('Unable to save flashcard:', error)
+    res.status(500).json({ error: 'The flashcard could not be saved.' })
+  }
+})
+
+// Edit one of the logged-in user's flashcards
+app.patch('/api/flashcards/:id', requireUser, async (req, res) => {
+  try {
+    const fields = readFlashcardFields(req.body)
+
+    if (fields.japanese === '' || fields.definition === '') {
+      return res.status(400).json({
+        error: 'A flashcard needs both a Japanese word and a definition.',
+      })
+    }
+
+    const owned = await prisma.flashcard.findFirst({
+      where: { id: req.params.id, userId: req.user.id },
+      select: { id: true },
+    })
+
+    if (!owned) {
+      return res.status(404).json({ error: 'Flashcard not found.' })
+    }
+
+    const flashcard = await prisma.flashcard.update({
+      where: { id: owned.id },
+      data: fields,
+      select: FLASHCARD_FIELDS,
+    })
+
+    res.json(flashcard)
+  } catch (error) {
+    if (error.code === 'P2002') {
+      return res.status(409).json({
+        error: 'You already have a flashcard for that word.',
+      })
+    }
+
+    console.error('Unable to update flashcard:', error)
+    res.status(500).json({ error: 'The flashcard could not be updated.' })
+  }
+})
+
+// Delete one of the logged-in user's flashcards
+app.delete('/api/flashcards/:id', requireUser, async (req, res) => {
+  try {
+    const { count } = await prisma.flashcard.deleteMany({
+      where: { id: req.params.id, userId: req.user.id },
+    })
+
+    if (count === 0) {
+      return res.status(404).json({ error: 'Flashcard not found.' })
+    }
+
+    res.status(204).end()
+  } catch (error) {
+    console.error('Unable to delete flashcard:', error)
+    res.status(500).json({ error: 'The flashcard could not be deleted.' })
   }
 })
 
