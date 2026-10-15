@@ -133,3 +133,5 @@
   text-align: center;
   word-break: break-word;
 }
+
+.book-progress { display: block; margin-top: 0.3rem; font-size: 0.75rem; color: #e9d5ff; }

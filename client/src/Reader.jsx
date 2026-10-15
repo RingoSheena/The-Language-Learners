@@ -6,6 +6,7 @@ import { flattenBook } from './epubFlatten.js'
 import { useJapaneseHover, useHoverToggle } from './hooks/useJapaneseHover.js' // NEW
 import DefinitionPopup from './components/DefinitionPopup.jsx' // NEW
 import './Reader.css'
+import useReadingState from './hooks/useReadingState.js'
 
 // No pagination at all: the browser's own text layout wraps everything
 // naturally, and the reader just scrolls through the result. That's the
@@ -179,20 +180,13 @@ function createPageTurnHandler(clipRef, isSettingsOpenRef) {
 // stay put as fixed gutters instead of scrolling away with the content.
 // `outer` is measured for the space available; `clip` is the scrollable
 // viewport window onto the iframe's full-sized content.
-function relayout(iframe, outer, clip, preferences, { preserveScroll = false } = {}) {
+function relayout(iframe, outer, clip, preferences) {
   const doc = iframe?.contentDocument
   if (!doc?.body || !outer || !clip) {
     return
   }
 
   const isVertical = preferences.orientation === 'vertical'
-
-  // Preserve reading position across a resize/settings change as a
-  // fraction of the *previous* scrollable range, since that range's size
-  // generally changes too.
-  const prevMaxScroll = isVertical ? clip.scrollWidth - clip.clientWidth : clip.scrollHeight - clip.clientHeight
-  const prevScroll = isVertical ? clip.scrollLeft : clip.scrollTop
-  const prevFraction = preserveScroll && prevMaxScroll > 0 ? prevScroll / prevMaxScroll : null
 
   // Match the margin gutters to the book's own background so they read as
   // part of the page (text simply inset from the edges) instead of a
@@ -250,18 +244,16 @@ function relayout(iframe, outer, clip, preferences, { preserveScroll = false } =
     const maxScroll = clip.scrollWidth - clip.clientWidth
     // The book reads right-to-left: it starts at the far right (max
     // scrollLeft) and scrolling left moves forward through it.
-    const targetScroll = prevFraction !== null ? prevFraction * maxScroll : maxScroll
-    clip.scrollLeft = Math.min(Math.max(targetScroll, 0), maxScroll)
+    clip.scrollLeft = maxScroll
   } else {
-    const maxScroll = clip.scrollHeight - clip.clientHeight
-    const targetScroll = prevFraction !== null ? prevFraction * maxScroll : 0
-    clip.scrollTop = Math.min(Math.max(targetScroll, 0), maxScroll)
+    clip.scrollTop = 0
   }
 }
 
 function Reader({ book, onBack }) {
   const [errorMessage, setErrorMessage] = useState('')
   const [isSettingsOpen, setIsSettingsOpen] = useState(false)
+  const [isBookmarksOpen, setIsBookmarksOpen] = useState(false)
   const [isFullscreen, setIsFullscreen] = useState(false)
   const [preferences, setPreferences] = useState(loadPreferences)
   const [html, setHtml] = useState(null)
@@ -271,6 +263,9 @@ function Reader({ book, onBack }) {
   const viewerRef = useRef(null)
   const clipRef = useRef(null)
   const iframeRef = useRef(null)
+  const reading = useReadingState(book.id, iframeRef, clipRef)
+  const preferencesRef = useRef(preferences)
+  useEffect(() => { preferencesRef.current = preferences }, [preferences])
   const isSettingsOpenRef = useRef(isSettingsOpen)
   const isLoadedRef = useRef(false)
   const isMountedRef = useRef(true)
@@ -307,7 +302,7 @@ function Reader({ book, onBack }) {
   // update meant to display that, leaving no chance for the browser to
   // paint it first. Waiting two animation frames guarantees a real paint
   // happens before the potentially-slow work starts.
-  const runRelayout = async (iframe, outer, clip, prefs, options) => {
+  const runRelayout = async (iframe, outer, clip, prefs) => {
     // StrictMode deliberately double-invokes effects in development, and
     // this function is called from more than one of them -- without a
     // guard, two overlapping calls could both end up mid-flight at once.
@@ -321,7 +316,9 @@ function Reader({ book, onBack }) {
       return
     }
     try {
-      relayout(iframe, outer, clip, prefs, options)
+      const position = reading.beforeLayout()
+      relayout(iframe, outer, clip, prefs)
+      reading.afterLayout(position, prefs.orientation === 'vertical')
     } catch (error) {
       // Surface it and recover the UI instead of leaving "Preparing
       // pages..." showing forever -- a silent, permanently-stuck loading
@@ -335,8 +332,8 @@ function Reader({ book, onBack }) {
   }
 
   useEffect(() => {
-    isSettingsOpenRef.current = isSettingsOpen
-  }, [isSettingsOpen])
+    isSettingsOpenRef.current = isSettingsOpen || isBookmarksOpen
+  }, [isSettingsOpen, isBookmarksOpen])
 
   useEffect(() => {
     let cancelled = false
@@ -394,9 +391,10 @@ function Reader({ book, onBack }) {
         // running right after this one.
         relayoutGenerationRef.current += 1
         try {
-          relayout(iframeRef.current, viewerRef.current, clipRef.current, preferences, {
-            preserveScroll: true,
-          })
+          const position = reading.beforeLayout()
+          const prefs = preferencesRef.current
+          relayout(iframeRef.current, viewerRef.current, clipRef.current, prefs)
+          reading.afterLayout(position, prefs.orientation === 'vertical')
         } catch (error) {
           console.error('Failed to lay out book:', error)
         }
@@ -441,7 +439,7 @@ function Reader({ book, onBack }) {
   return (
     <div className="reader-page" ref={pageRef}>
       <TopBar>
-        <button className="topbar-btn" onClick={onBack}>
+        <button className="topbar-btn" onClick={() => { reading.flush(); onBack() }}>
           Return to bookshelf
         </button>
         <button className="topbar-btn" onClick={handleToggleFullscreen}>
@@ -451,10 +449,20 @@ function Reader({ book, onBack }) {
         <button className="topbar-btn" onClick={() => setHoverOn(!hoverOn)}>
           Definitions: {hoverOn ? 'On' : 'Off'}
         </button>
-        <button className="topbar-btn" onClick={() => setIsSettingsOpen((open) => !open)}>
+        <button className="topbar-btn" onClick={() => { setIsBookmarksOpen(false); setIsSettingsOpen((open) => !open) }}>
           Settings
         </button>
+        <button className="topbar-btn" disabled={!html || isPaginating} onClick={() => { reading.addBookmark(); setIsSettingsOpen(false); setIsBookmarksOpen(true) }}>
+          Add bookmark
+        </button>
+        <button className="topbar-btn" aria-expanded={isBookmarksOpen} aria-controls="bookmarks-panel" onClick={() => { setIsSettingsOpen(false); setIsBookmarksOpen((open) => !open) }}>
+          Bookmarks ({reading.state.bookmarks.length})
+        </button>
       </TopBar>
+      <div className="reading-progress" role="status">
+        {Math.round((reading.state.position?.progress ?? 0) * 100)}% through {book.name}
+      </div>
+      {reading.storageError && <p className="reading-storage-error" role="alert">{reading.storageError}</p>}
 
       <div className="reader-content">
         <style id="yomu-scrollbar-style" />
@@ -462,7 +470,7 @@ function Reader({ book, onBack }) {
         {isPaginating && <p id="pagination-status">Loading book…</p>}
 
         <div id="viewer" ref={viewerRef}>
-          <div id="viewer-clip" ref={clipRef}>
+          <div id="viewer-clip" ref={clipRef} onScroll={reading.onScroll}>
             {html && (
               <iframe
                 ref={iframeRef}
@@ -480,6 +488,27 @@ function Reader({ book, onBack }) {
             onChange={handlePreferencesChange}
             onClose={() => setIsSettingsOpen(false)}
           />
+        )}
+
+        {isBookmarksOpen && (
+          <aside className="bookmarks-panel" id="bookmarks-panel" aria-label="Bookmarks">
+            <div className="reading-settings-header">
+              <h2>Bookmarks</h2>
+              <button className="reading-settings-close" aria-label="Close bookmarks" onClick={() => setIsBookmarksOpen(false)}>×</button>
+            </div>
+            {reading.state.bookmarks.length === 0 && <p>No bookmarks yet. Use “Add bookmark” to save this passage.</p>}
+            <ul className="bookmarks-list">
+              {reading.state.bookmarks.map((bookmark) => (
+                <li key={bookmark.id}>
+                  <button className="bookmark-jump" disabled={!html || isPaginating} onClick={() => { reading.jumpToBookmark(bookmark); setIsBookmarksOpen(false) }}>
+                    <span>{bookmark.label}</span>
+                    <small>{Math.round(bookmark.position.progress * 100)}% · {new Date(bookmark.createdAt).toLocaleDateString()}</small>
+                  </button>
+                  <button className="bookmark-remove" aria-label={`Remove bookmark: ${bookmark.label}`} onClick={() => reading.removeBookmark(bookmark.id)}>Remove</button>
+                </li>
+              ))}
+            </ul>
+          </aside>
         )}
 
         {/* NEW: the definition popup (word, reading, meaning, frequency) */}

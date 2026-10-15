@@ -6,6 +6,7 @@ import Flashcards from './components/Flashcards.jsx'
 import { addBook, deleteBook, getAllBooks, touchBook } from './db.js'
 import { extractCoverImage } from './epubCover.js'
 import { validateEpub } from './epubValidate.js'
+import { removeReadingState } from './readingState.js'
 
 function BookshelfApp() {
   const [view, setView] = useState('bookshelf')
@@ -83,6 +84,7 @@ function BookshelfApp() {
 
   const handleDeleteBook = async (id) => {
     await deleteBook(id)
+    removeReadingState(id)
     setBooks((prev) => prev.filter((book) => book.id !== id))
   }
 
@@ -90,7 +92,7 @@ function BookshelfApp() {
 
   if (view === 'reader' && activeBook) {
     return (
-      <Reader book={activeBook} onBack={() => setView('bookshelf')} />
+      <Reader key={activeBook.id} book={activeBook} onBack={() => setView('bookshelf')} />
     )
   }
 

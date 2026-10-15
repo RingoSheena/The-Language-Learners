@@ -1,6 +1,7 @@
 import { useMemo, useRef, useState } from 'react'
 import TopBar from './TopBar.jsx'
 import './Bookshelf.css'
+import { loadReadingState } from './readingState.js'
 
 function Bookshelf({
   books,
@@ -106,7 +107,9 @@ function Bookshelf({
           </p>
         ) : (
           <div className="bookshelf-grid">
-            {sortedBooks.map((book) => (
+            {sortedBooks.map((book) => {
+              const { position } = loadReadingState(book.id)
+              return (
               <div key={book.id} className="book-card">
                 <button
                   type="button"
@@ -123,6 +126,7 @@ function Bookshelf({
                 <button
                   type="button"
                   className="book-open-btn"
+                  aria-label={`${position ? 'Resume' : 'Read'} ${book.name}`}
                   onClick={() => onOpenBook(book.id)}
                 >
                   {book.coverImage ? (
@@ -138,10 +142,14 @@ function Bookshelf({
                     </span>
                   )}
 
-                  <span className="book-title">{book.name}</span>
+                  <span className="book-title">
+                    {book.name}
+                    {position && <small className="book-progress">Resume · {Math.round(position.progress * 100)}%</small>}
+                  </span>
                 </button>
               </div>
-            ))}
+              )
+            })}
           </div>
         )}
       </div>
