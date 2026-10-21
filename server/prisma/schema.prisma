@@ -28,6 +28,14 @@ model Flashcard {
   createdAt  DateTime @default(now())
   updatedAt  DateTime @updatedAt
 
+  // Spaced repetition schedule, see client/src/srs.js
+  dueAt          DateTime  @default(now())
+  intervalDays   Float     @default(0)
+  ease           Float     @default(2.5)
+  streak         Int       @default(0)
+  lapses         Int       @default(0)
+  lastReviewedAt DateTime?
+
   userId     String
   user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 

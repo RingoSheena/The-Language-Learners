@@ -2,16 +2,38 @@ import { useCallback, useEffect, useState } from 'react'
 import {
   deleteFlashcard,
   listFlashcards,
+  reviewFlashcard,
   updateFlashcard,
 } from '../lib/flashcardsApi.js'
+import { pickNextCard, RECENT_BUFFER_SIZE, reviewCard } from '../srs.js'
 import TopBar from '../TopBar.jsx'
 import './Flashcards.css'
 
-const DEFAULT_PRACTICE_HOTKEYS = { fail: '1', pass: '2' }
+const PRACTICE_GRADES = [
+  { grade: 'fail', label: 'Fail', feedback: 'Failed' },
+  { grade: 'hard', label: 'Hard', feedback: 'Hard' },
+  { grade: 'medium', label: 'Medium', feedback: 'Medium' },
+  { grade: 'easy', label: 'Easy', feedback: 'Easy' },
+]
+const DEFAULT_PRACTICE_HOTKEYS = { fail: '1', hard: '2', medium: '3', easy: '4' }
 const PRACTICE_HOTKEYS_STORAGE_KEY = 'flashcards-practice-hotkeys'
 
 function isValidPracticeHotkey(key) {
   return typeof key === 'string' && /^[a-z0-9]$/i.test(key)
+}
+
+function hasDistinctValidHotkeys(hotkeys) {
+  const keys = PRACTICE_GRADES.map(({ grade }) => hotkeys?.[grade])
+  return (
+    keys.every(isValidPracticeHotkey) &&
+    new Set(keys.map((key) => key.toLowerCase())).size === keys.length
+  )
+}
+
+function uppercaseHotkeys(hotkeys) {
+  return Object.fromEntries(
+    PRACTICE_GRADES.map(({ grade }) => [grade, hotkeys[grade].toUpperCase()])
+  )
 }
 
 function loadPracticeHotkeys() {
@@ -19,21 +41,29 @@ function loadPracticeHotkeys() {
     const saved = JSON.parse(
       window.localStorage.getItem(PRACTICE_HOTKEYS_STORAGE_KEY)
     )
-    if (
-      isValidPracticeHotkey(saved?.fail) &&
-      isValidPracticeHotkey(saved?.pass) &&
-      saved.fail.toLowerCase() !== saved.pass.toLowerCase()
-    ) {
-      return {
-        fail: saved.fail.toUpperCase(),
-        pass: saved.pass.toUpperCase(),
-      }
-    }
+    if (hasDistinctValidHotkeys(saved)) return uppercaseHotkeys(saved)
   } catch {
     // Use defaults when storage is unavailable or contains invalid data.
   }
 
   return DEFAULT_PRACTICE_HOTKEYS
+}
+
+const countDue = (cards, now) =>
+  cards.filter((card) => new Date(card.dueAt) <= now).length
+
+// The soonest dueAt in the deck, or null for an empty deck.
+function earliestDueAt(cards) {
+  const times = cards.map((card) => new Date(card.dueAt).getTime())
+  return times.length ? new Date(Math.min(...times)) : null
+}
+
+function formatDueAt(date) {
+  return date.toLocaleString(undefined, {
+    weekday: 'short',
+    hour: 'numeric',
+    minute: '2-digit',
+  })
 }
 
 export default function Flashcards({ onBack }) {
@@ -42,14 +72,15 @@ export default function Flashcards({ onBack }) {
   const [error, setError] = useState('')
   const [flipped, setFlipped] = useState({})
   const [editing, setEditing] = useState(null)
-  const [practiceCards, setPracticeCards] = useState([])
-  const [practiceIndex, setPracticeIndex] = useState(null)
+  // null when not practicing. currentId is null once nothing is due.
+  const [practice, setPractice] = useState(null)
   const [practiceFlipped, setPracticeFlipped] = useState(false)
   const [practiceHotkeys, setPracticeHotkeys] = useState(loadPracticeHotkeys)
   const [hotkeySettingsOpen, setHotkeySettingsOpen] = useState(false)
   const [hotkeyDraft, setHotkeyDraft] = useState(DEFAULT_PRACTICE_HOTKEYS)
   const [hotkeyError, setHotkeyError] = useState('')
   const [practiceFeedback, setPracticeFeedback] = useState(null)
+  const [practiceSaveError, setPracticeSaveError] = useState(false)
 
   useEffect(() => {
     listFlashcards()
@@ -126,28 +157,80 @@ export default function Flashcards({ onBack }) {
     setEditing((prev) => ({ ...prev, [field]: event.target.value }))
 
   function startPractice() {
-    const orderedCards = [...cards].sort(
-      (first, second) =>
-        new Date(first.createdAt).getTime() -
-        new Date(second.createdAt).getTime()
-    )
-    setPracticeCards(orderedCards)
-    setPracticeIndex(0)
+    const now = new Date()
+    setPractice({
+      currentId: pickNextCard(cards, { now })?.id ?? null,
+      recentIds: [],
+      reviewed: 0,
+      dueCount: countDue(cards, now),
+      ahead: false,
+    })
+    setPracticeFlipped(false)
+    setPracticeFeedback(null)
+    setPracticeSaveError(false)
+  }
+
+  // Keep practicing after everything due is done. Cards that aren't due yet
+  // are graded and rescheduled like any other, so it still shapes the
+  // algorithm.
+  function practiceAhead() {
+    const now = new Date()
+    setPractice((current) => ({
+      ...current,
+      ahead: true,
+      currentId:
+        pickNextCard(cards, {
+          now,
+          recentIds: current.recentIds,
+          includeNotDue: true,
+        })?.id ?? null,
+    }))
     setPracticeFlipped(false)
     setPracticeFeedback(null)
   }
 
-  const advancePractice = useCallback((result) => {
-    setPracticeFeedback(result)
-    setPracticeIndex((index) =>
-      index === null || index >= practiceCards.length - 1 ? null : index + 1
-    )
-    setPracticeFlipped(false)
-  }, [practiceCards.length])
+  const gradePractice = useCallback(
+    (grade) => {
+      const card = cards.find((candidate) => candidate.id === practice?.currentId)
+      if (!card) return
+
+      const now = new Date()
+      const schedule = reviewCard(card, grade, now)
+      const nextCards = cards.map((candidate) =>
+        candidate.id === card.id ? { ...candidate, ...schedule } : candidate
+      )
+      const recentIds = [...practice.recentIds, card.id].slice(
+        -RECENT_BUFFER_SIZE
+      )
+
+      setCards(nextCards)
+      setPractice({
+        currentId:
+          pickNextCard(nextCards, {
+            now,
+            recentIds,
+            includeNotDue: practice.ahead,
+          })?.id ?? null,
+        recentIds,
+        reviewed: practice.reviewed + 1,
+        dueCount: countDue(nextCards, now),
+        ahead: practice.ahead,
+      })
+      setPracticeFlipped(false)
+      setPracticeFeedback(grade)
+
+      // Don't make the learner wait on the network between cards.
+      reviewFlashcard(card.id, schedule).catch((err) => {
+        console.error('Failed to save review:', err)
+        setPracticeSaveError(true)
+      })
+    },
+    [cards, practice]
+  )
 
   function exitPractice() {
     setPracticeFeedback(null)
-    setPracticeIndex(null)
+    setPractice(null)
   }
 
   function openHotkeySettings() {
@@ -159,23 +242,24 @@ export default function Flashcards({ onBack }) {
   function saveHotkeySettings(event) {
     event.preventDefault()
 
-    const fail = hotkeyDraft.fail.trim()
-    const pass = hotkeyDraft.pass.trim()
-    if (!isValidPracticeHotkey(fail) || !isValidPracticeHotkey(pass)) {
+    const draft = Object.fromEntries(
+      PRACTICE_GRADES.map(({ grade }) => [grade, hotkeyDraft[grade].trim()])
+    )
+    if (!PRACTICE_GRADES.every(({ grade }) => isValidPracticeHotkey(draft[grade]))) {
       setHotkeyError('Choose one letter or number for each action.')
       return
     }
-    if (fail.toLowerCase() === pass.toLowerCase()) {
-      setHotkeyError('Fail and Pass must use different keys.')
+    if (!hasDistinctValidHotkeys(draft)) {
+      setHotkeyError('Each action must use a different key.')
       return
     }
 
-    setPracticeHotkeys({ fail: fail.toUpperCase(), pass: pass.toUpperCase() })
+    setPracticeHotkeys(uppercaseHotkeys(draft))
     setHotkeySettingsOpen(false)
   }
 
   useEffect(() => {
-    if (practiceIndex === null || hotkeySettingsOpen) return
+    if (practice === null || hotkeySettingsOpen) return
 
     function handlePracticeKeyDown(event) {
       if (event.repeat || event.altKey || event.ctrlKey || event.metaKey) return
@@ -188,21 +272,28 @@ export default function Flashcards({ onBack }) {
       }
 
       const key = event.key.toUpperCase()
-      if (key === practiceHotkeys.fail) {
+      const match = PRACTICE_GRADES.find(
+        ({ grade }) => practiceHotkeys[grade] === key
+      )
+      if (match) {
         event.preventDefault()
-        advancePractice('fail')
-      } else if (key === practiceHotkeys.pass) {
-        event.preventDefault()
-        advancePractice('pass')
+        gradePractice(match.grade)
       }
     }
 
     window.addEventListener('keydown', handlePracticeKeyDown)
     return () => window.removeEventListener('keydown', handlePracticeKeyDown)
-  }, [advancePractice, hotkeySettingsOpen, practiceHotkeys, practiceIndex])
+  }, [gradePractice, hotkeySettingsOpen, practiceHotkeys, practice])
 
-  if (practiceIndex !== null) {
-    const card = practiceCards[practiceIndex]
+  if (practice !== null) {
+    const card = cards.find((candidate) => candidate.id === practice.currentId)
+    const nextDueAt = earliestDueAt(cards)
+    const canPracticeAhead =
+      !card &&
+      pickNextCard(cards, {
+        recentIds: practice.recentIds,
+        includeNotDue: true,
+      }) !== null
 
     return (
       <div className="flashcards-practice-page">
@@ -225,41 +316,82 @@ export default function Flashcards({ onBack }) {
               role="status"
               aria-live="polite"
             >
-              {practiceFeedback === 'pass' ? 'Passed' : 'Failed'}
+              {
+                PRACTICE_GRADES.find(({ grade }) => grade === practiceFeedback)
+                  .feedback
+              }
             </p>
           )}
-          <p className="flashcard-progress">
-            Card {practiceIndex + 1} of {practiceCards.length}
-          </p>
+          {practiceSaveError && (
+            <p className="error-text" role="alert">
+              Some reviews could not be saved. Check your connection.
+            </p>
+          )}
 
-          <button
-            className="flashcard flashcard-practice-card"
-            onClick={() => setPracticeFlipped((isFlipped) => !isFlipped)}
-          >
-            <span className="flashcard-label">
-              {practiceFlipped ? 'DEFINITION' : 'JAPANESE'}
-            </span>
-            <h2 lang="ja">
-              {practiceFlipped ? card.definition : card.japanese}
-            </h2>
-            {practiceFlipped && card.reading && <p>{card.reading}</p>}
-            <span className="flashcard-hint">Click to flip</span>
-          </button>
+          {card ? (
+            <>
+              <p className="flashcard-progress">
+                Reviewed {practice.reviewed} ·{' '}
+                {practice.ahead
+                  ? 'practicing ahead'
+                  : `${practice.dueCount} due`}
+              </p>
 
-          <div className="flashcard-practice-actions">
-            <button
-              className="flashcard-practice-fail"
-              onClick={() => advancePractice('fail')}
-            >
-              Fail
-            </button>
-            <button
-              className="flashcard-practice-pass"
-              onClick={() => advancePractice('pass')}
-            >
-              Pass
-            </button>
-          </div>
+              <button
+                className="flashcard flashcard-practice-card"
+                onClick={() => setPracticeFlipped((isFlipped) => !isFlipped)}
+              >
+                <span className="flashcard-label">
+                  {practiceFlipped ? 'DEFINITION' : 'JAPANESE'}
+                </span>
+                <h2 lang="ja">
+                  {practiceFlipped ? card.definition : card.japanese}
+                </h2>
+                {practiceFlipped && card.reading && <p>{card.reading}</p>}
+                <span className="flashcard-hint">Click to flip</span>
+              </button>
+
+              <div className="flashcard-practice-actions">
+                {PRACTICE_GRADES.map(({ grade, label }) => (
+                  <button
+                    key={grade}
+                    className={`flashcard-practice-${grade}`}
+                    onClick={() => gradePractice(grade)}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+            </>
+          ) : (
+            <section className="flashcard-practice-done">
+              <h2>You're all caught up</h2>
+              <p>
+                {practice.reviewed === 0
+                  ? 'No cards are due right now.'
+                  : `You reviewed ${practice.reviewed} ${
+                      practice.reviewed === 1 ? 'card' : 'cards'
+                    }.`}
+              </p>
+              {nextDueAt && (
+                <p>Next card due {formatDueAt(nextDueAt)}.</p>
+              )}
+              {canPracticeAhead && (
+                <button
+                  className="flashcard-practice-start"
+                  onClick={practiceAhead}
+                >
+                  Practice more
+                </button>
+              )}
+              <button
+                className="flashcard-practice-start"
+                onClick={exitPractice}
+              >
+                Back to flashcards
+              </button>
+            </section>
+          )}
         </main>
 
         {hotkeySettingsOpen && (
@@ -272,35 +404,23 @@ export default function Flashcards({ onBack }) {
             >
               <h2 id="flashcard-hotkey-title">Practice hotkeys</h2>
               <form onSubmit={saveHotkeySettings}>
-                <label>
-                  Fail key
-                  <input
-                    autoFocus
-                    type="text"
-                    maxLength={1}
-                    value={hotkeyDraft.fail}
-                    onChange={(event) =>
-                      setHotkeyDraft((draft) => ({
-                        ...draft,
-                        fail: event.target.value.slice(-1).toUpperCase(),
-                      }))
-                    }
-                  />
-                </label>
-                <label>
-                  Pass key
-                  <input
-                    type="text"
-                    maxLength={1}
-                    value={hotkeyDraft.pass}
-                    onChange={(event) =>
-                      setHotkeyDraft((draft) => ({
-                        ...draft,
-                        pass: event.target.value.slice(-1).toUpperCase(),
-                      }))
-                    }
-                  />
-                </label>
+                {PRACTICE_GRADES.map(({ grade, label }, index) => (
+                  <label key={grade}>
+                    {label} key
+                    <input
+                      autoFocus={index === 0}
+                      type="text"
+                      maxLength={1}
+                      value={hotkeyDraft[grade]}
+                      onChange={(event) =>
+                        setHotkeyDraft((draft) => ({
+                          ...draft,
+                          [grade]: event.target.value.slice(-1).toUpperCase(),
+                        }))
+                      }
+                    />
+                  </label>
+                ))}
                 {hotkeyError && (
                   <p className="flashcard-hotkey-error" role="alert">
                     {hotkeyError}
@@ -336,16 +456,6 @@ export default function Flashcards({ onBack }) {
   return (
     <div style={{ padding: 24 }}>
       {onBack && <button onClick={onBack}>← Back to Bookshelf</button>}
-      {practiceFeedback && (
-        <p
-          className={`flashcard-practice-feedback flashcard-practice-feedback-${practiceFeedback}`}
-          role="status"
-          aria-live="polite"
-        >
-          {practiceFeedback === 'pass' ? 'Passed' : 'Marked failed'}
-        </p>
-      )}
-
       <h1>My Flashcards</h1>
       <p>Click a card to reveal its definition.</p>
 

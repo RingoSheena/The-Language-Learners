@@ -63,6 +63,7 @@ app.get('/', (req, res) => {
       '/api/books/:id',
       '/api/flashcards',
       '/api/flashcards/:id',
+      '/api/flashcards/:id/review',
     ],
   })
 })
@@ -383,6 +384,12 @@ const FLASHCARD_FIELDS = {
   definition: true,
   createdAt: true,
   updatedAt: true,
+  dueAt: true,
+  intervalDays: true,
+  ease: true,
+  streak: true,
+  lapses: true,
+  lastReviewedAt: true,
 }
 
 // Pulls the editable flashcard fields out of a request body as trimmed
@@ -487,6 +494,57 @@ app.patch('/api/flashcards/:id', requireUser, async (req, res) => {
 
     console.error('Unable to update flashcard:', error)
     res.status(500).json({ error: 'The flashcard could not be updated.' })
+  }
+})
+
+// Pulls a validated review schedule out of a request body, or returns null
+// if any field is missing or out of range. The schedule itself is computed
+// by the client (client/src/srs.js); this only makes sure it's sane.
+function readReviewSchedule(body = {}) {
+  const dueAt = new Date(body.dueAt)
+  const lastReviewedAt = new Date(body.lastReviewedAt)
+  const { intervalDays, ease, streak, lapses } = body
+
+  const valid =
+    !Number.isNaN(dueAt.getTime()) &&
+    !Number.isNaN(lastReviewedAt.getTime()) &&
+    Number.isFinite(intervalDays) && intervalDays >= 0 &&
+    Number.isFinite(ease) && ease >= 1.3 && ease <= 10 &&
+    Number.isInteger(streak) && streak >= 0 &&
+    Number.isInteger(lapses) && lapses >= 0
+
+  return valid
+    ? { dueAt, intervalDays, ease, streak, lapses, lastReviewedAt }
+    : null
+}
+
+// Save a card's new review schedule after the user grades it
+app.post('/api/flashcards/:id/review', requireUser, async (req, res) => {
+  try {
+    const schedule = readReviewSchedule(req.body)
+
+    if (!schedule) {
+      return res.status(400).json({ error: 'That review is not valid.' })
+    }
+
+    const { count } = await prisma.flashcard.updateMany({
+      where: { id: req.params.id, userId: req.user.id },
+      data: schedule,
+    })
+
+    if (count === 0) {
+      return res.status(404).json({ error: 'Flashcard not found.' })
+    }
+
+    const flashcard = await prisma.flashcard.findUnique({
+      where: { id: req.params.id },
+      select: FLASHCARD_FIELDS,
+    })
+
+    res.json(flashcard)
+  } catch (error) {
+    console.error('Unable to save review:', error)
+    res.status(500).json({ error: 'Your review could not be saved.' })
   }
 })
 
