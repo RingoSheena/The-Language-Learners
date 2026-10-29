@@ -5,11 +5,13 @@ import {
   deleteFlashcard,
   getFlashcardStats,
   listFlashcards,
+  logPremadeReview,
   reviewFlashcard,
   updateFlashcard,
 } from '../lib/flashcardsApi.js'
 import { addDays, dayOfWeek } from '../../../shared/practiceDay.js'
 import { pickNextCard, RECENT_BUFFER_SIZE, reviewCard } from '../../../shared/srs.js'
+import PremadeDecks from './PremadeDecks.jsx'
 import './Flashcards.css'
 
 // Practice only asks pass or fail. A pass is scheduled as the algorithm's
@@ -259,7 +261,9 @@ export default function Flashcards({ onBack }) {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [editing, setEditing] = useState(null)
+  const [tab, setTab] = useState('mine') // 'mine' | 'decks'
   // null when not practicing. currentId is null once nothing is due.
+  // deckCards is null for your own cards, or an in-memory array for a premade deck.
   const [practice, setPractice] = useState(null)
   const [practiceFlipped, setPracticeFlipped] = useState(false)
   const [practiceHotkeys, setPracticeHotkeys] = useState(loadPracticeHotkeys)
@@ -396,6 +400,7 @@ export default function Flashcards({ onBack }) {
   const editField = (field) => (event) =>
     setEditing((prev) => ({ ...prev, [field]: event.target.value }))
 
+  // Practice your own saved cards.
   function startPractice() {
     const now = new Date()
     setPractice({
@@ -404,6 +409,35 @@ export default function Flashcards({ onBack }) {
       reviewed: 0,
       dueCount: countDue(cards, now),
       ahead: false,
+      deckCards: null,
+    })
+    setPracticeFlipped(false)
+    setPracticeSaveError(false)
+  }
+
+  // Practice a premade deck. Cards get the full SRS schedule fields so
+  // reviewCard / pickNextCard work, but they live only in memory: they are
+  // never added to your flashcards. Reviews are still logged for stats.
+  function studyDeck(found) {
+    const now = new Date()
+    const deckCards = found.map((card, index) => ({
+      ...card,
+      id: `premade-${index}-${card.japanese}`,
+      dueAt: now.toISOString(),
+      intervalDays: 0,
+      ease: 2.5,
+      streak: 0,
+      lapses: 0,
+      lastReviewedAt: null,
+    }))
+
+    setPractice({
+      currentId: pickNextCard(deckCards, { now })?.id ?? null,
+      recentIds: [],
+      reviewed: 0,
+      dueCount: countDue(deckCards, now),
+      ahead: false,
+      deckCards,
     })
     setPracticeFlipped(false)
     setPracticeSaveError(false)
@@ -418,7 +452,7 @@ export default function Flashcards({ onBack }) {
       ...current,
       ahead: true,
       currentId:
-        pickNextCard(cards, {
+        pickNextCard(current.deckCards ?? cards, {
           now,
           recentIds: current.recentIds,
           includeNotDue: true,
@@ -430,20 +464,23 @@ export default function Flashcards({ onBack }) {
   // `grade` is a practice button: 'fail' or 'pass'
   const gradePractice = useCallback(
     (grade) => {
-      const card = cards.find((candidate) => candidate.id === practice?.currentId)
+      const isDeck = Boolean(practice?.deckCards)
+      const list = practice?.deckCards ?? cards
+      const card = list.find((candidate) => candidate.id === practice?.currentId)
       if (!card) return
 
       const { srsGrade } = PRACTICE_GRADES.find((option) => option.grade === grade)
       const now = new Date()
       const schedule = reviewCard(card, srsGrade, now)
-      const nextCards = cards.map((candidate) =>
+      const nextCards = list.map((candidate) =>
         candidate.id === card.id ? { ...candidate, ...schedule } : candidate
       )
       const recentIds = [...practice.recentIds, card.id].slice(
         -RECENT_BUFFER_SIZE
       )
 
-      setCards(nextCards)
+      // Premade decks stay in memory; your own cards are saved as before.
+      if (!isDeck) setCards(nextCards)
       setPractice({
         currentId:
           pickNextCard(nextCards, {
@@ -455,8 +492,26 @@ export default function Flashcards({ onBack }) {
         reviewed: practice.reviewed + 1,
         dueCount: countDue(nextCards, now),
         ahead: practice.ahead,
+        deckCards: isDeck ? nextCards : null,
       })
       setPracticeFlipped(false)
+
+      // Premade deck cards aren't saved, but each review is logged so deck
+      // practice counts toward stats and the streak.
+      if (isDeck) {
+        const logging = logPremadeReview({
+          grade: srsGrade,
+          durationMs: Date.now() - cardShownAt.current,
+          intervalDays: card.intervalDays,
+          newIntervalDays: schedule.intervalDays,
+        })
+        pendingReviews.current = Promise.allSettled([pendingReviews.current, logging])
+        logging.catch((err) => {
+          console.error('Failed to log premade deck review:', err)
+          setPracticeSaveError(true)
+        })
+        return
+      }
 
       // Don't make the learner wait on the network between cards. The local
       // schedule above uses the same shared/srs.js as the server; the
@@ -535,7 +590,9 @@ export default function Flashcards({ onBack }) {
         return
       }
 
+      // Premade deck cards aren't saved, so they can't be edited.
       if (key === 'E') {
+        if (practice.deckCards) return
         const card = cards.find(
           (candidate) => candidate.id === practice.currentId
         )
@@ -546,11 +603,28 @@ export default function Flashcards({ onBack }) {
         return
       }
 
+      const isSpace = event.key === ' '
+      // A button the learner tabbed to gets Space/Enter as a normal press,
+      // instead of it also flipping or passing the card.
+      if (
+        (isSpace || event.key === 'Enter') &&
+        event.target instanceof HTMLButtonElement
+      ) {
+        return
+      }
+
       if (!practiceFlipped) {
-        if (event.key === ' ' || event.key === 'Enter') {
+        if (isSpace || event.key === 'Enter') {
           event.preventDefault()
           setPracticeFlipped(true)
         }
+        return
+      }
+
+      // Space flips a card, and pressing it again passes it.
+      if (isSpace) {
+        event.preventDefault()
+        gradePractice('pass')
         return
       }
 
@@ -576,11 +650,14 @@ export default function Flashcards({ onBack }) {
   ])
 
   if (practice !== null) {
-    const card = cards.find((candidate) => candidate.id === practice.currentId)
-    const nextDueAt = earliestDueAt(cards)
+    const isDeck = Boolean(practice.deckCards)
+    const list = practice.deckCards ?? cards
+    const card = list.find((candidate) => candidate.id === practice.currentId)
+    // Premade deck schedules aren't saved, so don't show a "next due" time.
+    const nextDueAt = isDeck ? null : earliestDueAt(cards)
     const canPracticeAhead =
       !card &&
-      pickNextCard(cards, {
+      pickNextCard(list, {
         recentIds: practice.recentIds,
         includeNotDue: true,
       }) !== null
@@ -606,11 +683,9 @@ export default function Flashcards({ onBack }) {
 
             {card ? (
               <div className="anki-card-area">
-                <button
-                  type="button"
-                  className="anki-word-panel"
-                  onClick={() => setPracticeFlipped((isFlipped) => !isFlipped)}
-                >
+                {/* Not clickable: the card flips with Show Answer, Space, or
+                    Enter, and Space again passes it */}
+                <div className="anki-word-panel">
                   {practiceFlipped && card.reading && !isKanaOnly(card.japanese) && (
                     <span className="anki-reading">{card.reading}</span>
                   )}
@@ -622,13 +697,16 @@ export default function Flashcards({ onBack }) {
                   >
                     {card.japanese}
                   </span>
-                </button>
+                </div>
 
                 {practiceFlipped && (
                   <div className="anki-definition-panel">
                     <span className="anki-definition-label">Definition</span>
                     {definitionLines.map((line, index) => {
-                      const { reading, gloss } = splitDefinitionLine(line)
+                      // Premade definitions have no "reading" prefix to split off.
+                      const { reading, gloss } = isDeck
+                        ? { reading: '', gloss: line }
+                        : splitDefinitionLine(line)
                       return (
                         <p className="anki-definition-line" key={index}>
                           {reading && <b>{reading} </b>}
@@ -641,7 +719,7 @@ export default function Flashcards({ onBack }) {
               </div>
             ) : (
               <section className="flashcard-practice-done">
-                <h2>You're all caught up</h2>
+                <h2>{isDeck ? 'Deck complete' : "You're all caught up"}</h2>
                 <p>
                   {practice.reviewed === 0
                     ? 'No cards are due right now.'
@@ -664,7 +742,7 @@ export default function Flashcards({ onBack }) {
                   className="flashcard-practice-start"
                   onClick={exitPractice}
                 >
-                  Back to flashcards
+                  {isDeck ? 'Back to decks' : 'Back to flashcards'}
                 </button>
               </section>
             )}
@@ -673,13 +751,15 @@ export default function Flashcards({ onBack }) {
 
         {card && (
           <div className="anki-bottom-bar">
-            <button
-              type="button"
-              className="anki-edit-btn"
-              onClick={() => setEditing({ ...card })}
-            >
-              Edit
-            </button>
+            {!isDeck && (
+              <button
+                type="button"
+                className="anki-edit-btn"
+                onClick={() => setEditing({ ...card })}
+              >
+                Edit
+              </button>
+            )}
 
             {practiceFlipped ? (
               <div className="anki-grade-buttons">
@@ -1037,8 +1117,8 @@ export default function Flashcards({ onBack }) {
       )}
 
       <div className="flashcards-page-header">
-        <h1>My Flashcards</h1>
-        {cards.length > 0 && (
+        <h1>Flashcards</h1>
+        {tab === 'mine' && cards.length > 0 && (
           <div className="flashcards-header-actions">
             <button
               className="flashcard-browse-start"
@@ -1053,20 +1133,45 @@ export default function Flashcards({ onBack }) {
         )}
       </div>
 
-      {error && <p className="error-text">{error}</p>}
+      <div className="flashcards-tabs" role="tablist">
+        <button
+          className="flashcards-tab"
+          role="tab"
+          aria-selected={tab === 'mine'}
+          onClick={() => setTab('mine')}
+        >
+          My Flashcards
+        </button>
+        <button
+          className="flashcards-tab"
+          role="tab"
+          aria-selected={tab === 'decks'}
+          onClick={() => setTab('decks')}
+        >
+          Decks
+        </button>
+      </div>
 
-      {loading ? (
-        <p className="flashcards-empty">Loading flashcards…</p>
-      ) : cards.length === 0 ? (
-        !error && (
-          <p>No flashcards saved yet. Save a word from its definition popup!</p>
-        )
+      {tab === 'decks' ? (
+        <PremadeDecks onStudy={studyDeck} />
       ) : (
         <>
-          <p className="flashcards-count">
-            {cards.length} {cards.length === 1 ? 'card' : 'cards'}
-          </p>
-          {stats && <PracticeStats stats={stats} />}
+          {error && <p className="error-text">{error}</p>}
+
+          {loading ? (
+            <p className="flashcards-empty">Loading flashcards…</p>
+          ) : cards.length === 0 ? (
+            !error && (
+              <p>No flashcards saved yet. Save a word from its definition popup!</p>
+            )
+          ) : (
+            <>
+              <p className="flashcards-count">
+                {cards.length} {cards.length === 1 ? 'card' : 'cards'}
+              </p>
+              {stats && <PracticeStats stats={stats} />}
+            </>
+          )}
         </>
       )}
     </div>
