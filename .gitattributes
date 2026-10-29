@@ -1,0 +1,3 @@
+# Shell scripts always use Unix line endings, so bash can run them on
+# Windows, WSL, macOS, and Linux alike
+*.sh text eol=lf
