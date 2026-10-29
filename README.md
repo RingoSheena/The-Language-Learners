@@ -29,36 +29,21 @@ Run `npm test`, `npm run lint`, and `npm run build` from `client/` to check the 
 
 ## Getting started
 
-### Client
+You need [Node.js](https://nodejs.org) 22.18 or newer. Then, from the repo root:
 
 ```
-cd client
-npm install
-npm run dev
+./start-dev.sh
 ```
 
-### Server
+Open http://localhost:5173. Press Ctrl+C to stop both servers.
 
-Create `server/.env` with:
+The script does all the setup a fresh clone needs, and skips whatever is already done, so run it every time (including after pulling changes):
 
-```
-DATABASE_URL="file:./dev.db"
-PORT=3001
-JWT_SECRET="any-long-random-string"
-```
+- installs dependencies in `server/` and `client/` when they're missing, when `package-lock.json` has changed, or when you've switched Node versions
+- creates `server/.env` with a random `JWT_SECRET`, or adds any settings an older `.env` is missing (existing values are kept)
+- generates the Prisma client and applies any new database migrations
+- starts the backend (http://localhost:3001) and the frontend, which forwards `/api` requests to the backend
 
-`JWT_SECRET` signs login sessions, so the server won't start without it. Use your own random value, e.g. from `node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"`.
+If Yomu is already running, it stops and tells you instead of starting a second copy. If your local database can't be migrated (for example, it was made with `prisma db push`), it tells you which file to delete to start fresh.
 
-Then:
-
-```
-cd server
-npm install
-npx prisma generate
-npx prisma migrate dev
-npm run dev
-```
-
-Start the server before the client. The client forwards `/api` requests to `http://localhost:3001`.
-
-After pulling changes that add a migration, run `npx prisma migrate dev` in `server/` again to update your local database.
+On Windows, run it from Git Bash.
