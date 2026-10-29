@@ -5,9 +5,10 @@
 }
 .flashcards-tab {
   padding: 8px 16px;
-  border: 1px solid #ccc;
+  border: 1px solid var(--border);
   border-radius: 8px;
   background: transparent;
+  color: var(--text-h);
   cursor: pointer;
 }
 .flashcards-tab[aria-selected='true'] {
@@ -44,8 +45,9 @@
   flex-direction: column;
   gap: 6px;
   padding: 16px;
-  border: 1px solid #ddd;
+  border: 1px solid var(--border);
   border-radius: 12px;
+  background: var(--code-bg);
 }
 .premade-deck h3,
 .premade-deck p {

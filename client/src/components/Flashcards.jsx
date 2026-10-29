@@ -5,6 +5,7 @@ import {
   deleteFlashcard,
   getFlashcardStats,
   listFlashcards,
+  logPremadeReview,
   reviewFlashcard,
   updateFlashcard,
 } from '../lib/flashcardsApi.js'
@@ -409,16 +410,15 @@ export default function Flashcards({ onBack }) {
       dueCount: countDue(cards, now),
       ahead: false,
       deckCards: null,
-      deckTitle: null,
     })
     setPracticeFlipped(false)
     setPracticeSaveError(false)
   }
 
   // Practice a premade deck. Cards get the full SRS schedule fields so
-  // reviewCard / pickNextCard work, but they live only in memory:
-  // they are never added to your flashcards or sent to the API.
-  function studyDeck(found, title) {
+  // reviewCard / pickNextCard work, but they live only in memory: they are
+  // never added to your flashcards. Reviews are still logged for stats.
+  function studyDeck(found) {
     const now = new Date()
     const deckCards = found.map((card, index) => ({
       ...card,
@@ -438,7 +438,6 @@ export default function Flashcards({ onBack }) {
       dueCount: countDue(deckCards, now),
       ahead: false,
       deckCards,
-      deckTitle: title,
     })
     setPracticeFlipped(false)
     setPracticeSaveError(false)
@@ -494,12 +493,25 @@ export default function Flashcards({ onBack }) {
         dueCount: countDue(nextCards, now),
         ahead: practice.ahead,
         deckCards: isDeck ? nextCards : null,
-        deckTitle: practice.deckTitle,
       })
       setPracticeFlipped(false)
 
-      // Premade deck reviews are never sent to the server.
-      if (isDeck) return
+      // Premade deck cards aren't saved, but each review is logged so deck
+      // practice counts toward stats and the streak.
+      if (isDeck) {
+        const logging = logPremadeReview({
+          grade: srsGrade,
+          durationMs: Date.now() - cardShownAt.current,
+          intervalDays: card.intervalDays,
+          newIntervalDays: schedule.intervalDays,
+        })
+        pendingReviews.current = Promise.allSettled([pendingReviews.current, logging])
+        logging.catch((err) => {
+          console.error('Failed to log premade deck review:', err)
+          setPracticeSaveError(true)
+        })
+        return
+      }
 
       // Don't make the learner wait on the network between cards. The local
       // schedule above uses the same shared/srs.js as the server; the
@@ -591,11 +603,28 @@ export default function Flashcards({ onBack }) {
         return
       }
 
+      const isSpace = event.key === ' '
+      // A button the learner tabbed to gets Space/Enter as a normal press,
+      // instead of it also flipping or passing the card.
+      if (
+        (isSpace || event.key === 'Enter') &&
+        event.target instanceof HTMLButtonElement
+      ) {
+        return
+      }
+
       if (!practiceFlipped) {
-        if (event.key === ' ' || event.key === 'Enter') {
+        if (isSpace || event.key === 'Enter') {
           event.preventDefault()
           setPracticeFlipped(true)
         }
+        return
+      }
+
+      // Space flips a card, and pressing it again passes it.
+      if (isSpace) {
+        event.preventDefault()
+        gradePractice('pass')
         return
       }
 
@@ -646,10 +675,6 @@ export default function Flashcards({ onBack }) {
 
         <main className="flashcards-practice">
           <div className="flashcard-stage">
-            {practice.deckTitle && (
-              <p className="flashcard-progress">{practice.deckTitle}</p>
-            )}
-
             {practiceSaveError && (
               <p className="error-text anki-save-error" role="alert">
                 Some reviews could not be saved. Check your connection.
@@ -658,11 +683,9 @@ export default function Flashcards({ onBack }) {
 
             {card ? (
               <div className="anki-card-area">
-                <button
-                  type="button"
-                  className="anki-word-panel"
-                  onClick={() => setPracticeFlipped((isFlipped) => !isFlipped)}
-                >
+                {/* Not clickable: the card flips with Show Answer, Space, or
+                    Enter, and Space again passes it */}
+                <div className="anki-word-panel">
                   {practiceFlipped && card.reading && !isKanaOnly(card.japanese) && (
                     <span className="anki-reading">{card.reading}</span>
                   )}
@@ -674,7 +697,7 @@ export default function Flashcards({ onBack }) {
                   >
                     {card.japanese}
                   </span>
-                </button>
+                </div>
 
                 {practiceFlipped && (
                   <div className="anki-definition-panel">

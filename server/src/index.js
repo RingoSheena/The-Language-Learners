@@ -73,6 +73,7 @@ app.get('/', (req, res) => {
       '/api/flashcards/stats',
       '/api/flashcards/:id',
       '/api/flashcards/:id/review',
+      '/api/flashcards/premade-reviews',
     ],
   })
 })
@@ -762,6 +763,44 @@ app.post('/api/flashcards/:id/review', requireUser, async (req, res) => {
     res.json(flashcard)
   } catch (error) {
     console.error('Unable to save review:', error)
+    res.status(500).json({ error: 'Your review could not be saved.' })
+  }
+})
+
+// Longest interval a premade deck review can report, about a century
+const MAX_INTERVAL_DAYS = 36500
+
+const readIntervalDays = (days) =>
+  Number.isFinite(days) ? Math.min(Math.max(days, 0), MAX_INTERVAL_DAYS) : null
+
+// Log a review of a premade deck card. Deck cards only live in the browser,
+// so there's no card to update, but the review still counts toward the
+// learner's stats and streak. The client sends the intervals it computed
+// with shared/srs.js. Logs with no card are left out of per-card stats.
+app.post('/api/flashcards/premade-reviews', requireUser, async (req, res) => {
+  try {
+    const { grade } = req.body ?? {}
+    const intervalDays = readIntervalDays(req.body?.intervalDays)
+    const newIntervalDays = readIntervalDays(req.body?.newIntervalDays)
+
+    if (!GRADES.includes(grade) || intervalDays === null || newIntervalDays === null) {
+      return res.status(400).json({ error: 'That review is not valid.' })
+    }
+
+    await prisma.reviewLog.create({
+      data: {
+        grade,
+        durationMs: readReviewDuration(req.body?.durationMs),
+        intervalDays,
+        newIntervalDays,
+        cardId: null,
+        userId: req.user.id,
+      },
+    })
+
+    res.status(204).end()
+  } catch (error) {
+    console.error('Unable to save premade deck review:', error)
     res.status(500).json({ error: 'Your review could not be saved.' })
   }
 })

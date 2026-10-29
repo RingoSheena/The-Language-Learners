@@ -84,6 +84,16 @@ export function reviewFlashcard(id, grade, durationMs) {
   })
 }
 
+// Logs a review of a premade deck card, so deck practice counts toward stats
+// and the streak. Deck cards aren't saved, so this sends the intervals the
+// client computed instead of a card id.
+export function logPremadeReview({ grade, durationMs, intervalDays, newIntervalDays }) {
+  return request('/api/flashcards/premade-reviews', {
+    method: 'POST',
+    body: JSON.stringify({ grade, durationMs, intervalDays, newIntervalDays }),
+  })
+}
+
 // Practice stats: today, the past week, streak, retention, cards due soon,
 // and a year of daily review counts. Days are the learner's local practice
 // days (see shared/practiceDay.js), so send this browser's time zone.
