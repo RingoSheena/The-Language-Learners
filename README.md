@@ -1,6 +1,7 @@
 # The-Language-Learners
 
-Yomu — Japanese Reading & Flashcard Suite
+Yomu 
+Japanese Reading & Flashcard Suite
 
 ## Reading progress and bookmarks
 
