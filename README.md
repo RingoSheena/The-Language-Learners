@@ -30,7 +30,14 @@ Run `npm test`, `npm run lint`, and `npm run build` from `client/` to check the 
 
 ## Getting started
 
-You need [Node.js](https://nodejs.org) 22.18 or newer. Then, from the repo root:
+You need [Node.js](https://nodejs.org) 22.18 or newer.
+
+Run this in a terminal to install:
+```
+winget install OpenJS.NodeJS.LTS
+```
+
+Then, from the repo root:
 
 ```
 ./start-dev.sh
