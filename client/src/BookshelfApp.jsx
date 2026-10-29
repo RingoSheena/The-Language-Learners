@@ -51,9 +51,7 @@ function BookshelfApp() {
         await validateEpub(data.slice(0))
       } catch (error) {
         console.error('Failed to parse EPUB:', error)
-        setUploadError(
-          `Unable to open "${file.name}". The file may be corrupted or not a valid EPUB.`
-        )
+        setUploadError(error.message)
         return
       }
 
