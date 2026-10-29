@@ -1,4 +1,5 @@
 import { defaultPreferences } from './readingPreferences.js'
+import { HOTKEY_OPTIONS } from './hooks/useJapaneseHover.js'
 import './ReadingSettingsPanel.css'
 
 // Free typing needs to work mid-edit (clearing "16" to type "20" passes
@@ -33,7 +34,13 @@ function NumberField({ label, unit, min, max, step, value, onCommit }) {
   )
 }
 
-function ReadingSettingsPanel({ preferences, onChange, onClose }) {
+function ReadingSettingsPanel({
+  preferences,
+  onChange,
+  onClose,
+  definitionHotkey,
+  onDefinitionHotkeyChange,
+}) {
   const update = (patch) => onChange({ ...preferences, ...patch })
 
   return (
@@ -126,6 +133,18 @@ function ReadingSettingsPanel({ preferences, onChange, onClose }) {
           </button>
         </div>
       </fieldset>
+
+      <label className="reading-settings-field">
+        <span>Hold to look up a word</span>
+        <select
+          value={definitionHotkey}
+          onChange={(event) => onDefinitionHotkeyChange(event.target.value)}
+        >
+          {HOTKEY_OPTIONS.map(({ code, label }) => (
+            <option key={code} value={code}>{label}</option>
+          ))}
+        </select>
+      </label>
 
       <button
         type="button"
