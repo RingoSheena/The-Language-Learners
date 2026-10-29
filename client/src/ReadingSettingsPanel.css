@@ -72,17 +72,6 @@
   width: 100%;
 }
 
-.reading-settings-field select {
-  width: 100%;
-  padding: 0.35rem 0.5rem;
-  border: 1px solid var(--border);
-  border-radius: 4px;
-  background: var(--bg);
-  color: var(--text-h);
-  font-size: 0.85rem;
-  font-family: inherit;
-}
-
 .reading-settings-number {
   display: flex;
   align-items: center;

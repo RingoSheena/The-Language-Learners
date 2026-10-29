@@ -3,7 +3,7 @@ import TopBar from './TopBar.jsx'
 import ReadingSettingsPanel from './ReadingSettingsPanel.jsx'
 import { loadPreferences, savePreferences } from './readingPreferences.js'
 import { flattenBook } from './epubFlatten.js'
-import { useJapaneseHover, useDefinitionHotkey } from './hooks/useJapaneseHover.js' // NEW
+import { useJapaneseHover, useHoverToggle } from './hooks/useJapaneseHover.js' // NEW
 import DefinitionPopup from './components/DefinitionPopup.jsx' // NEW
 import './Reader.css'
 import useReadingState from './hooks/useReadingState.js'
@@ -275,13 +275,11 @@ function Reader({ book, onBack }) {
     pageTurnHandlerRef.current = createPageTurnHandler(clipRef, isSettingsOpenRef)
   }
 
-  // NEW: hover-to-define. Hold the chosen hotkey (configurable in Display
-  // settings, left Alt by default) over a word to look it up; the popup
-  // then stays open until clicked away, not just while the key is held.
+  // NEW: hover-to-define. hoverOn is the "Definitions: On/Off" switch;
   // popup is what <DefinitionPopup> renders; attach() wires the hover
   // listeners into the iframe's document each time it loads.
-  const [definitionHotkey, setDefinitionHotkey] = useDefinitionHotkey()
-  const { popup, attach } = useJapaneseHover(iframeRef, { hotkey: definitionHotkey })
+  const [hoverOn, setHoverOn] = useHoverToggle()
+  const { popup, attach } = useJapaneseHover(iframeRef, { enabled: hoverOn })
 
   useEffect(() => {
     // StrictMode runs this effect, then its cleanup, then the effect again
@@ -447,6 +445,10 @@ function Reader({ book, onBack }) {
         <button className="topbar-btn" onClick={handleToggleFullscreen}>
           {isFullscreen ? 'Exit fullscreen' : 'Fullscreen'}
         </button>
+        {/* NEW: turn hover definitions on/off */}
+        <button className="topbar-btn" onClick={() => setHoverOn(!hoverOn)}>
+          Definitions: {hoverOn ? 'On' : 'Off'}
+        </button>
         <button className="topbar-btn" onClick={() => { setIsBookmarksOpen(false); setIsSettingsOpen((open) => !open) }}>
           Settings
         </button>
@@ -485,8 +487,6 @@ function Reader({ book, onBack }) {
             preferences={preferences}
             onChange={handlePreferencesChange}
             onClose={() => setIsSettingsOpen(false)}
-            definitionHotkey={definitionHotkey}
-            onDefinitionHotkeyChange={setDefinitionHotkey}
           />
         )}
 
