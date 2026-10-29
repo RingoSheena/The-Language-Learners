@@ -23,14 +23,12 @@ const clip = (s, n = 300) =>
 
 export default function DefinitionPopup({ popup }) {
   const [saved, setSaved] = useState(false)
-  const [saveError, setSaveError] = useState('')
 
   const word = popup?.info?.word ?? popup?.text
 
   useEffect(() => {
     let cancelled = false
     setSaved(false)
-    setSaveError('')
 
     if (word) {
       getSavedWords()
@@ -92,8 +90,6 @@ export default function DefinitionPopup({ popup }) {
     : 'No definition found.'
 
   async function saveFlashcard() {
-    setSaveError('')
-
     try {
       await createFlashcard({
         japanese,
@@ -102,14 +98,16 @@ export default function DefinitionPopup({ popup }) {
       })
 
       setSaved(true)
+      alert('Flashcard created!')
     } catch (error) {
       if (error.status === 409) {
         setSaved(true)
+        alert('This flashcard is already saved.')
         return
       }
 
       console.error('Failed to save flashcard:', error)
-      setSaveError(
+      alert(
         error.status === 401
           ? 'Please log in to save flashcards.'
           : 'Unable to create flashcard.'
@@ -151,6 +149,7 @@ export default function DefinitionPopup({ popup }) {
                   marginTop: 4,
                 }}
               >
+                {d.r && <b>{d.r} </b>}
                 {clip((d.gloss ?? []).join('; '))}
               </div>
             ))
@@ -210,12 +209,6 @@ export default function DefinitionPopup({ popup }) {
       >
         {isAlreadySaved ? '✓ Saved' : '＋ Create Flashcard'}
       </button>
-
-      {saveError && (
-        <div style={{ marginTop: 6, color: '#c22', fontSize: 12 }}>
-          {saveError}
-        </div>
-      )}
     </div>
   )
 }
