@@ -9,12 +9,13 @@ import {
   deleteBook,
   downloadBook,
   listBooks,
+  loadReadingState,
   touchBook,
   uploadBook,
 } from './lib/booksApi.js'
 import { extractCoverImage } from './epubCover.js'
 import { validateEpub } from './epubValidate.js'
-import { removeReadingState } from './readingState.js'
+import { removeLocalReadingState } from './readingState.js'
 
 function BookshelfApp() {
   const navigate = useNavigate()
@@ -76,8 +77,12 @@ function BookshelfApp() {
     setUploadError('')
 
     let data
+    let readingState
     try {
-      data = await downloadBook(id)
+      ;[data, readingState] = await Promise.all([
+        downloadBook(id),
+        loadReadingState(id),
+      ])
     } catch (error) {
       console.error('Failed to download book:', error)
       setUploadError(`Unable to open "${book.name}".`)
@@ -96,7 +101,7 @@ function BookshelfApp() {
       console.error('Failed to record last-opened time:', error)
     )
 
-    setActiveBook({ ...book, lastOpenedAt, data })
+    setActiveBook({ ...book, lastOpenedAt, data, readingState })
     setView('reader')
   }
 
@@ -109,7 +114,8 @@ function BookshelfApp() {
       return
     }
 
-    removeReadingState(id)
+    // Clean up any copy from before progress synced to the account
+    removeLocalReadingState(id)
     setBooks((prev) => prev.filter((book) => book.id !== id))
   }
 
@@ -125,7 +131,15 @@ function BookshelfApp() {
     }
   }
 
-  const closeReader = () => {
+  // The reader hands back where it left off, so the bookshelf's progress
+  // is current without reloading the library.
+  const closeReader = (readingPosition) => {
+    const id = activeBook.id
+    setBooks((prev) =>
+      prev.map((item) =>
+        item.id === id && readingPosition ? { ...item, readingPosition } : item
+      )
+    )
     setActiveBook(null)
     setView('bookshelf')
   }

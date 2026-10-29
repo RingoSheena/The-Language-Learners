@@ -1,6 +1,10 @@
+// Reading progress and bookmarks are saved to the learner's account (see
+// useReadingState). Before that they lived only in this browser's
+// localStorage; these read and clear that old copy so it can be moved to
+// the account the first time each book is opened.
 const key = (bookId) => `yomu-reading:${bookId}`
 
-export function loadReadingState(bookId) {
+export function loadLocalReadingState(bookId) {
   try {
     const saved = JSON.parse(localStorage.getItem(key(bookId)))
     return {
@@ -18,18 +22,8 @@ function validPosition(position) {
   return position && Number.isFinite(position.progress) && position.progress >= 0 && position.progress <= 1
 }
 
-// Return failure so the reader can explain when browser storage is unavailable.
-export function saveReadingState(bookId, state) {
-  try {
-    localStorage.setItem(key(bookId), JSON.stringify(state))
-    return true
-  } catch {
-    return false
-  }
-}
-
-export function removeReadingState(bookId) {
-  try { localStorage.removeItem(key(bookId)) } catch { /* Book deletion still works. */ }
+export function removeLocalReadingState(bookId) {
+  try { localStorage.removeItem(key(bookId)) } catch { /* Nothing left to clean up. */ }
 }
 
 export function readingProgress(clip, vertical) {

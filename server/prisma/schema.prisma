@@ -18,6 +18,7 @@ model User {
 
   books        Book[]
   flashcards   Flashcard[]
+  reviewLogs   ReviewLog[]
 }
 
 model Flashcard {
@@ -28,7 +29,7 @@ model Flashcard {
   createdAt  DateTime @default(now())
   updatedAt  DateTime @updatedAt
 
-  // Spaced repetition schedule, see client/src/srs.js
+  // Spaced repetition schedule, see shared/srs.js
   dueAt          DateTime  @default(now())
   intervalDays   Float     @default(0)
   ease           Float     @default(2.5)
@@ -38,8 +39,29 @@ model Flashcard {
 
   userId     String
   user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  reviewLogs ReviewLog[]
 
   @@unique([userId, japanese])
+}
+
+// One row per graded flashcard, for practice stats. Kept when the card is
+// deleted, so past days' totals don't change.
+model ReviewLog {
+  id              String   @id @default(uuid())
+  grade           String   // fail | hard | medium | easy
+  reviewedAt      DateTime @default(now())
+  // Time from the card being shown to it being graded, capped server-side
+  durationMs      Int
+  intervalDays    Float    // before this review
+  newIntervalDays Float    // after it
+
+  cardId     String?
+  card       Flashcard? @relation(fields: [cardId], references: [id], onDelete: SetNull)
+  userId     String
+  user       User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, reviewedAt])
+  @@index([cardId])
 }
 
 model Book {
@@ -51,9 +73,25 @@ model Book {
   coverImage   String?
   createdAt    DateTime  @default(now())
   lastOpenedAt DateTime?
+  // Where the reader left off, as captured by client/src/readingState.js
+  readingPosition Json?
 
   userId    String
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  bookmarks Bookmark[]
 
   @@index([userId])
+}
+
+model Bookmark {
+  id        String   @id @default(uuid())
+  label     String
+  // Same shape as Book.readingPosition
+  position  Json
+  createdAt DateTime @default(now())
+
+  bookId    String
+  book      Book     @relation(fields: [bookId], references: [id], onDelete: Cascade)
+
+  @@index([bookId])
 }
