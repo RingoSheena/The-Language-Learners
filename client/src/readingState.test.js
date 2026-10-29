@@ -1,8 +1,8 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { loadReadingState, saveReadingState, removeReadingState, readingProgress, restorePosition } from './readingState.js'
+import { loadLocalReadingState, removeLocalReadingState, readingProgress, restorePosition } from './readingState.js'
 
-test('reading state is isolated by book and survives a storage round trip', () => {
+test('old browser-stored reading state is read per book and validated', () => {
   const data = new Map()
   globalThis.localStorage = {
     getItem: (key) => data.get(key),
@@ -10,21 +10,21 @@ test('reading state is isolated by book and survives a storage round trip', () =
     removeItem: (key) => data.delete(key),
   }
   const state = { position: { progress: 0.4, path: [0, 2], offset: 5 }, bookmarks: [{ id: 'one', position: { progress: 0.2 } }] }
-  assert.equal(saveReadingState('a', state), true)
-  assert.deepEqual(loadReadingState('a'), state)
-  assert.deepEqual(loadReadingState('b'), { position: null, bookmarks: [] })
+  data.set('yomu-reading:a', JSON.stringify(state))
+  assert.deepEqual(loadLocalReadingState('a'), state)
+  assert.deepEqual(loadLocalReadingState('b'), { position: null, bookmarks: [] })
   data.set('yomu-reading:broken', '{')
-  assert.deepEqual(loadReadingState('broken'), { position: null, bookmarks: [] })
+  assert.deepEqual(loadLocalReadingState('broken'), { position: null, bookmarks: [] })
   data.set('yomu-reading:invalid', JSON.stringify({ position: { progress: 4 }, bookmarks: [{ id: 'bad', position: { progress: -1 } }] }))
-  assert.deepEqual(loadReadingState('invalid'), { position: null, bookmarks: [] })
-  removeReadingState('a')
-  assert.equal(loadReadingState('a').position, null)
+  assert.deepEqual(loadLocalReadingState('invalid'), { position: null, bookmarks: [] })
+  removeLocalReadingState('a')
+  assert.equal(loadLocalReadingState('a').position, null)
 })
 
 test('storage denial is recoverable', () => {
-  globalThis.localStorage = { getItem() { throw Error('denied') }, setItem() { throw Error('quota') } }
-  assert.equal(loadReadingState('a').position, null)
-  assert.equal(saveReadingState('a', {}), false)
+  globalThis.localStorage = { getItem() { throw Error('denied') }, removeItem() { throw Error('denied') } }
+  assert.equal(loadLocalReadingState('a').position, null)
+  assert.doesNotThrow(() => removeLocalReadingState('a'))
 })
 
 test('progress runs right to left vertically and top to bottom horizontally', () => {

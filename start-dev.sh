@@ -3,8 +3,9 @@ set -e
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
-echo "Running Prisma migrations..."
+echo "Generating Prisma client and running migrations..."
 cd "$ROOT_DIR/server"
+npx prisma generate
 npx prisma migrate deploy
 
 echo "Starting backend..."

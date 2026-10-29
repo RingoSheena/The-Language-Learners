@@ -263,7 +263,7 @@ function Reader({ book, onBack }) {
   const viewerRef = useRef(null)
   const clipRef = useRef(null)
   const iframeRef = useRef(null)
-  const reading = useReadingState(book.id, iframeRef, clipRef)
+  const reading = useReadingState(book.id, book.readingState, iframeRef, clipRef)
   const preferencesRef = useRef(preferences)
   useEffect(() => { preferencesRef.current = preferences }, [preferences])
   const isSettingsOpenRef = useRef(isSettingsOpen)
@@ -441,7 +441,7 @@ function Reader({ book, onBack }) {
   return (
     <div className="reader-page" ref={pageRef}>
       <TopBar>
-        <button className="topbar-btn" onClick={() => { reading.flush(); onBack() }}>
+        <button className="topbar-btn" onClick={() => onBack(reading.flush({ now: true }))}>
           Return to bookshelf
         </button>
         <button className="topbar-btn" onClick={handleToggleFullscreen}>
@@ -460,7 +460,7 @@ function Reader({ book, onBack }) {
       <div className="reading-progress" role="status">
         {Math.round((reading.state.position?.progress ?? 0) * 100)}% through {book.name}
       </div>
-      {reading.storageError && <p className="reading-storage-error" role="alert">{reading.storageError}</p>}
+      {reading.syncError && <p className="reading-storage-error" role="alert">{reading.syncError}</p>}
 
       <div className="reader-content">
         <style id="yomu-scrollbar-style" />

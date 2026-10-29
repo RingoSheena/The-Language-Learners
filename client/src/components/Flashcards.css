@@ -24,6 +24,122 @@
   margin: 0;
 }
 
+.flashcard-stats-panel {
+  margin: 16px 0 0;
+}
+
+.flashcard-stats {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+  gap: 8px;
+  margin: 0;
+}
+
+.flashcard-stat {
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--code-bg);
+}
+
+.flashcard-stat dt {
+  color: var(--text);
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.flashcard-stat dd {
+  margin: 4px 0 0;
+  font-size: 22px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.flashcard-stat .flashcard-stat-note {
+  margin-top: 2px;
+  color: var(--text);
+  font-size: 11px;
+  font-weight: 400;
+}
+
+.flashcard-stages {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 16px;
+  margin: 12px 0 0;
+  padding: 0;
+  list-style: none;
+  color: var(--text);
+  font-size: 13px;
+}
+
+.flashcard-stages strong {
+  color: var(--text-h);
+  font-variant-numeric: tabular-nums;
+}
+
+.flashcard-stage-dot {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  margin-right: 6px;
+  border-radius: 50%;
+}
+
+.flashcard-stage-new { background: #4a7fc1; }
+.flashcard-stage-learning { background: #c1773a; }
+.flashcard-stage-young { background: #7fb88f; }
+.flashcard-stage-mature { background: #2a7a4b; }
+
+.review-heatmap {
+  margin: 12px 0 0;
+}
+
+.review-heatmap figcaption {
+  margin-bottom: 6px;
+  color: var(--text);
+  font-size: 12px;
+}
+
+.review-heatmap-scroll {
+  overflow-x: auto;
+}
+
+.review-heatmap-grid {
+  display: grid;
+  grid-auto-flow: column;
+  grid-template-rows: repeat(7, 10px);
+  grid-auto-columns: 10px;
+  gap: 3px;
+  width: max-content;
+}
+
+.review-heatmap-day {
+  border-radius: 2px;
+  background: var(--border);
+}
+
+.review-heatmap-level-1 { background: rgba(42, 122, 75, 0.35); }
+.review-heatmap-level-2 { background: rgba(42, 122, 75, 0.55); }
+.review-heatmap-level-3 { background: rgba(42, 122, 75, 0.8); }
+.review-heatmap-level-4 { background: #2a7a4b; }
+
+.flashcards-search {
+  box-sizing: border-box;
+  width: 100%;
+  max-width: 480px;
+  margin: 4px 0 12px;
+  padding: 8px 12px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg);
+  color: var(--text-h);
+  font: inherit;
+  font-size: 14px;
+}
+
 .flashcards-count {
   margin: 10px 0;
   color: var(--text);
@@ -39,7 +155,7 @@
 .flashcards-table-header,
 .flashcards-row {
   display: grid;
-  grid-template-columns: minmax(90px, 1fr) minmax(80px, 1fr) minmax(160px, 3fr) 120px 150px;
+  grid-template-columns: minmax(110px, 1fr) minmax(80px, 1fr) minmax(160px, 3fr) 120px 64px 52px 64px 150px;
   gap: 12px;
   align-items: center;
   padding: 0 12px;
@@ -57,7 +173,9 @@
 }
 
 .flashcards-table-scroll {
-  height: min(65vh, 680px);
+  /* The table has the Browse page to itself, so fill the window below the
+     header and search box */
+  height: max(240px, calc(100vh - 240px));
   overflow-y: auto;
 }
 
@@ -91,6 +209,40 @@
 
 .flashcards-cell-definition {
   color: var(--text);
+}
+
+.flashcards-cell-word {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.flashcards-cell-word > span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.flashcards-cell-number {
+  color: var(--text);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+
+.flashcard-leech-badge {
+  flex-shrink: 0;
+  padding: 1px 6px;
+  border: 1px solid #b4443a;
+  border-radius: 999px;
+  background: transparent;
+  color: #b4443a;
+  font-size: 10px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.flashcard-leech-badge:hover {
+  background: #b4443a;
+  color: white;
 }
 
 .flashcards-cell-due {
@@ -209,6 +361,21 @@
   border: 1px solid var(--border);
   background: var(--bg);
   color: var(--text-h);
+}
+
+.flashcards-header-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.flashcard-browse-start {
+  margin-top: 8px;
+  padding: 8px 16px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg);
+  color: var(--text-h);
+  cursor: pointer;
 }
 
 .flashcard-practice-start {
@@ -348,40 +515,6 @@
   font-weight: 600;
 }
 
-.flashcard-practice-feedback {
-  margin: 0;
-  padding: 10px 14px;
-  border: 1px solid;
-  border-radius: 999px;
-  white-space: nowrap;
-  font-size: 13px;
-  font-weight: 600;
-}
-
-.flashcard-practice-feedback-easy {
-  border-color: #3fa86a;
-  background: #15291c;
-  color: #8affa8;
-}
-
-.flashcard-practice-feedback-medium {
-  border-color: #2f6fb0;
-  background: #142433;
-  color: #8ac1ff;
-}
-
-.flashcard-practice-feedback-hard {
-  border-color: #c76a1a;
-  background: #332213;
-  color: #ffc98a;
-}
-
-.flashcard-practice-feedback-fail {
-  border-color: #b33;
-  background: #331414;
-  color: #ff8a8a;
-}
-
 .flashcard-practice-done {
   display: flex;
   flex-direction: column;
@@ -440,7 +573,7 @@
 }
 
 .anki-grade-btn {
-  min-width: 68px;
+  min-width: 96px;
   padding: 4px 14px;
   border: none;
   border-radius: 999px;
@@ -458,15 +591,7 @@
   color: #ff8a8a;
 }
 
-.anki-grade-hard {
-  color: #ffc98a;
-}
-
-.anki-grade-medium {
-  color: #8ac1ff;
-}
-
-.anki-grade-easy {
+.anki-grade-pass {
   color: #8affa8;
 }
 

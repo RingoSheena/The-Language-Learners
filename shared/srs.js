@@ -1,6 +1,8 @@
 // Spaced repetition for flashcard practice: a simplified SM-2.
 //
-// Two pure functions, no React and no network, so they're easy to test:
+// Shared by the client (previews and picking the next card) and the server
+// (the saved schedule), so both always agree. Two pure functions, no React
+// and no network, so they're easy to test:
 //   reviewCard    -- the card's new schedule after the user grades it
 //   pickNextCard  -- which card to show next
 //
