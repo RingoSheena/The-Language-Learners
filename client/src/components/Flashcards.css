@@ -183,9 +183,23 @@
   background: #b33;
 }
 
-.flashcard-practice-pass {
+.flashcard-practice-hard {
+  border-color: #c76a1a !important;
+  background: #c76a1a;
+}
+
+.flashcard-practice-medium {
+  border-color: #2f6fb0 !important;
+  background: #2f6fb0;
+}
+
+.flashcard-practice-easy {
   border-color: #2a7a4b !important;
   background: #2a7a4b;
+}
+
+.flashcard-practice-done {
+  text-align: center;
 }
 
 .flashcard-practice-feedback {
@@ -197,10 +211,22 @@
   font-weight: 600;
 }
 
-.flashcard-practice-feedback-pass {
+.flashcard-practice-feedback-easy {
   border-color: #2a7a4b;
   background: #edf7f0;
   color: #205f3a;
+}
+
+.flashcard-practice-feedback-medium {
+  border-color: #2f6fb0;
+  background: #eef5fc;
+  color: #234f7c;
+}
+
+.flashcard-practice-feedback-hard {
+  border-color: #c76a1a;
+  background: #fff5ea;
+  color: #8a4710;
 }
 
 .flashcard-practice-feedback-fail {

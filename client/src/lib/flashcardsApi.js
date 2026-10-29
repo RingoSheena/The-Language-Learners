@@ -72,6 +72,15 @@ export async function updateFlashcard(id, changes) {
   }
 }
 
+// Saves the schedule computed by reviewCard() in srs.js. Doesn't reset
+// the saved-words cache: grading a card doesn't change which words exist.
+export function reviewFlashcard(id, schedule) {
+  return request(`/api/flashcards/${id}/review`, {
+    method: 'POST',
+    body: JSON.stringify(schedule),
+  })
+}
+
 export async function deleteFlashcard(id) {
   try {
     return await request(`/api/flashcards/${id}`, { method: 'DELETE' })
