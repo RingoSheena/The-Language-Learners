@@ -1,0 +1,72 @@
+.flashcards-tabs {
+  display: flex;
+  gap: 8px;
+  margin: 12px 0 16px;
+}
+.flashcards-tab {
+  padding: 8px 16px;
+  border: 1px solid #ccc;
+  border-radius: 8px;
+  background: transparent;
+  cursor: pointer;
+}
+.flashcards-tab[aria-selected='true'] {
+  background: #2f6fed;
+  border-color: #2f6fed;
+  color: #fff;
+}
+
+.premade-filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+  margin: 12px 0 20px;
+}
+.premade-filters label {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 0.9rem;
+}
+
+.premade-category-desc {
+  margin-top: 0;
+  opacity: 0.75;
+}
+.premade-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: 16px;
+  margin-bottom: 28px;
+}
+.premade-deck {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 16px;
+  border: 1px solid #ddd;
+  border-radius: 12px;
+}
+.premade-deck h3,
+.premade-deck p {
+  margin: 0;
+}
+.premade-deck .flashcard-practice-start {
+  margin-top: auto;
+}
+.premade-level-desc,
+.premade-meta {
+  font-size: 0.85rem;
+  opacity: 0.75;
+}
+.premade-badge {
+  align-self: flex-start;
+  padding: 2px 10px;
+  border-radius: 999px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: #fff;
+}
+.premade-badge-beginner { background: #2e9d5b; }
+.premade-badge-intermediate { background: #d98a00; }
+.premade-badge-expert { background: #c9372c; }

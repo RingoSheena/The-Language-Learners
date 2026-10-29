@@ -7,6 +7,7 @@ import {
 } from '../lib/flashcardsApi.js'
 import { pickNextCard, RECENT_BUFFER_SIZE, reviewCard } from '../srs.js'
 import TopBar from '../TopBar.jsx'
+import PremadeDecks from './PremadeDecks.jsx'
 import './Flashcards.css'
 
 const PRACTICE_GRADES = [
@@ -72,7 +73,9 @@ export default function Flashcards({ onBack }) {
   const [error, setError] = useState('')
   const [flipped, setFlipped] = useState({})
   const [editing, setEditing] = useState(null)
+  const [tab, setTab] = useState('mine') // 'mine' | 'decks'
   // null when not practicing. currentId is null once nothing is due.
+  // deckCards is null for your own cards, or an in-memory array for a premade deck.
   const [practice, setPractice] = useState(null)
   const [practiceFlipped, setPracticeFlipped] = useState(false)
   const [practiceHotkeys, setPracticeHotkeys] = useState(loadPracticeHotkeys)
@@ -156,6 +159,7 @@ export default function Flashcards({ onBack }) {
   const editField = (field) => (event) =>
     setEditing((prev) => ({ ...prev, [field]: event.target.value }))
 
+  // Practice your own saved cards.
   function startPractice() {
     const now = new Date()
     setPractice({
@@ -164,6 +168,38 @@ export default function Flashcards({ onBack }) {
       reviewed: 0,
       dueCount: countDue(cards, now),
       ahead: false,
+      deckCards: null,
+      deckTitle: null,
+    })
+    setPracticeFlipped(false)
+    setPracticeFeedback(null)
+    setPracticeSaveError(false)
+  }
+
+  // Practice a premade deck. Cards get the full SRS schedule fields so
+  // reviewCard / pickNextCard work, but they live only in memory:
+  // they are never added to your flashcards or sent to the API.
+  function studyDeck(found, title) {
+    const now = new Date()
+    const deckCards = found.map((card, index) => ({
+      ...card,
+      id: `premade-${index}-${card.japanese}`,
+      dueAt: now.toISOString(),
+      intervalDays: 0,
+      ease: 2.5,
+      streak: 0,
+      lapses: 0,
+      lastReviewedAt: null,
+    }))
+
+    setPractice({
+      currentId: pickNextCard(deckCards, { now })?.id ?? null,
+      recentIds: [],
+      reviewed: 0,
+      dueCount: countDue(deckCards, now),
+      ahead: false,
+      deckCards,
+      deckTitle: title,
     })
     setPracticeFlipped(false)
     setPracticeFeedback(null)
@@ -179,7 +215,7 @@ export default function Flashcards({ onBack }) {
       ...current,
       ahead: true,
       currentId:
-        pickNextCard(cards, {
+        pickNextCard(current.deckCards ?? cards, {
           now,
           recentIds: current.recentIds,
           includeNotDue: true,
@@ -191,19 +227,22 @@ export default function Flashcards({ onBack }) {
 
   const gradePractice = useCallback(
     (grade) => {
-      const card = cards.find((candidate) => candidate.id === practice?.currentId)
+      const isDeck = Boolean(practice?.deckCards)
+      const list = practice?.deckCards ?? cards
+      const card = list.find((candidate) => candidate.id === practice?.currentId)
       if (!card) return
 
       const now = new Date()
       const schedule = reviewCard(card, grade, now)
-      const nextCards = cards.map((candidate) =>
+      const nextCards = list.map((candidate) =>
         candidate.id === card.id ? { ...candidate, ...schedule } : candidate
       )
       const recentIds = [...practice.recentIds, card.id].slice(
         -RECENT_BUFFER_SIZE
       )
 
-      setCards(nextCards)
+      // Premade decks stay in memory; your own cards are saved as before.
+      if (!isDeck) setCards(nextCards)
       setPractice({
         currentId:
           pickNextCard(nextCards, {
@@ -215,15 +254,19 @@ export default function Flashcards({ onBack }) {
         reviewed: practice.reviewed + 1,
         dueCount: countDue(nextCards, now),
         ahead: practice.ahead,
+        deckCards: isDeck ? nextCards : null,
+        deckTitle: practice.deckTitle,
       })
       setPracticeFlipped(false)
       setPracticeFeedback(grade)
 
       // Don't make the learner wait on the network between cards.
-      reviewFlashcard(card.id, schedule).catch((err) => {
-        console.error('Failed to save review:', err)
-        setPracticeSaveError(true)
-      })
+      if (!isDeck) {
+        reviewFlashcard(card.id, schedule).catch((err) => {
+          console.error('Failed to save review:', err)
+          setPracticeSaveError(true)
+        })
+      }
     },
     [cards, practice]
   )
@@ -286,11 +329,14 @@ export default function Flashcards({ onBack }) {
   }, [gradePractice, hotkeySettingsOpen, practiceHotkeys, practice])
 
   if (practice !== null) {
-    const card = cards.find((candidate) => candidate.id === practice.currentId)
-    const nextDueAt = earliestDueAt(cards)
+    const isDeck = Boolean(practice.deckCards)
+    const list = practice.deckCards ?? cards
+    const card = list.find((candidate) => candidate.id === practice.currentId)
+    // Premade deck schedules aren't saved, so don't show a "next due" time.
+    const nextDueAt = isDeck ? null : earliestDueAt(cards)
     const canPracticeAhead =
       !card &&
-      pickNextCard(cards, {
+      pickNextCard(list, {
         recentIds: practice.recentIds,
         includeNotDue: true,
       }) !== null
@@ -331,10 +377,11 @@ export default function Flashcards({ onBack }) {
           {card ? (
             <>
               <p className="flashcard-progress">
+                {practice.deckTitle ? `${practice.deckTitle} · ` : ''}
                 Reviewed {practice.reviewed} ·{' '}
                 {practice.ahead
                   ? 'practicing ahead'
-                  : `${practice.dueCount} due`}
+                  : `${practice.dueCount} ${isDeck ? 'left' : 'due'}`}
               </p>
 
               <button
@@ -365,7 +412,7 @@ export default function Flashcards({ onBack }) {
             </>
           ) : (
             <section className="flashcard-practice-done">
-              <h2>You're all caught up</h2>
+              <h2>{isDeck ? 'Deck complete' : "You're all caught up"}</h2>
               <p>
                 {practice.reviewed === 0
                   ? 'No cards are due right now.'
@@ -388,7 +435,7 @@ export default function Flashcards({ onBack }) {
                 className="flashcard-practice-start"
                 onClick={exitPractice}
               >
-                Back to flashcards
+                {isDeck ? 'Back to decks' : 'Back to flashcards'}
               </button>
             </section>
           )}
@@ -456,116 +503,142 @@ export default function Flashcards({ onBack }) {
   return (
     <div style={{ padding: 24 }}>
       {onBack && <button onClick={onBack}>← Back to Bookshelf</button>}
-      <h1>My Flashcards</h1>
-      <p>Click a card to reveal its definition.</p>
+      <h1>Flashcards</h1>
 
-      {error && <p className="error-text">{error}</p>}
+      <div className="flashcards-tabs" role="tablist">
+        <button
+          className="flashcards-tab"
+          role="tab"
+          aria-selected={tab === 'mine'}
+          onClick={() => setTab('mine')}
+        >
+          My Flashcards
+        </button>
+        <button
+          className="flashcards-tab"
+          role="tab"
+          aria-selected={tab === 'decks'}
+          onClick={() => setTab('decks')}
+        >
+          Decks
+        </button>
+      </div>
 
-      {loading ? (
-        <p className="flashcards-empty">Loading flashcards…</p>
-      ) : cards.length === 0 ? (
-        !error && (
-          <p>No flashcards saved yet. Save a word from its definition popup!</p>
-        )
+      {tab === 'decks' ? (
+        <PremadeDecks onStudy={studyDeck} />
       ) : (
         <>
-          <button
-            className="flashcard-practice-start"
-            onClick={startPractice}
-          >
-            Practice
-          </button>
-          <div className="flashcards-grid">
-            {cards.map((card) =>
-            editing?.id === card.id ? (
-              <form
-                className="flashcard-item flashcard-edit"
-                key={card.id}
-                onSubmit={saveEdit}
-              >
-                <label>
-                  Japanese
-                  <input
-                    lang="ja"
-                    value={editing.japanese}
-                    onChange={editField('japanese')}
-                    required
-                  />
-                </label>
+          <p>Click a card to reveal its definition.</p>
 
-                <label>
-                  Reading
-                  <input
-                    lang="ja"
-                    value={editing.reading}
-                    onChange={editField('reading')}
-                  />
-                </label>
+          {error && <p className="error-text">{error}</p>}
 
-                <label>
-                  Definition
-                  <textarea
-                    rows={4}
-                    value={editing.definition}
-                    onChange={editField('definition')}
-                    required
-                  />
-                </label>
-
-                <div className="flashcard-actions">
-                  <button type="submit" className="flashcard-save">
-                    Save
-                  </button>
-                  <button type="button" onClick={() => setEditing(null)}>
-                    Cancel
-                  </button>
-                </div>
-              </form>
-            ) : (
-              <div className="flashcard-item" key={card.id}>
-                <button
-                  className="flashcard"
-                  onClick={() =>
-                    setFlipped((prev) => ({
-                      ...prev,
-                      [card.id]: !prev[card.id],
-                    }))
-                  }
-                >
-                  <span className="flashcard-label">
-                    {flipped[card.id] ? 'DEFINITION' : 'JAPANESE'}
-                  </span>
-
-                  <h2 lang="ja">
-                    {flipped[card.id] ? card.definition : card.japanese}
-                  </h2>
-
-                  {flipped[card.id] && card.reading && (
-                    <p>{card.reading}</p>
-                  )}
-
-                  <span className="flashcard-hint">Click to flip</span>
-                </button>
-
-                <div className="flashcard-actions">
-                  <button
-                    className="flashcard-edit-btn"
-                    onClick={() => setEditing({ ...card })}
-                  >
-                    Edit
-                  </button>
-
-                  <button
-                    className="flashcard-remove"
-                    onClick={() => removeCard(card.id)}
-                  >
-                    Remove
-                  </button>
-                </div>
-              </div>
+          {loading ? (
+            <p className="flashcards-empty">Loading flashcards…</p>
+          ) : cards.length === 0 ? (
+            !error && (
+              <p>No flashcards saved yet. Save a word from its definition popup!</p>
             )
-            )}
-          </div>
+          ) : (
+            <>
+              <button
+                className="flashcard-practice-start"
+                onClick={() => startPractice()}
+              >
+                Practice
+              </button>
+              <div className="flashcards-grid">
+                {cards.map((card) =>
+                  editing?.id === card.id ? (
+                    <form
+                      className="flashcard-item flashcard-edit"
+                      key={card.id}
+                      onSubmit={saveEdit}
+                    >
+                      <label>
+                        Japanese
+                        <input
+                          lang="ja"
+                          value={editing.japanese}
+                          onChange={editField('japanese')}
+                          required
+                        />
+                      </label>
+
+                      <label>
+                        Reading
+                        <input
+                          lang="ja"
+                          value={editing.reading}
+                          onChange={editField('reading')}
+                        />
+                      </label>
+
+                      <label>
+                        Definition
+                        <textarea
+                          rows={4}
+                          value={editing.definition}
+                          onChange={editField('definition')}
+                          required
+                        />
+                      </label>
+
+                      <div className="flashcard-actions">
+                        <button type="submit" className="flashcard-save">
+                          Save
+                        </button>
+                        <button type="button" onClick={() => setEditing(null)}>
+                          Cancel
+                        </button>
+                      </div>
+                    </form>
+                  ) : (
+                    <div className="flashcard-item" key={card.id}>
+                      <button
+                        className="flashcard"
+                        onClick={() =>
+                          setFlipped((prev) => ({
+                            ...prev,
+                            [card.id]: !prev[card.id],
+                          }))
+                        }
+                      >
+                        <span className="flashcard-label">
+                          {flipped[card.id] ? 'DEFINITION' : 'JAPANESE'}
+                        </span>
+
+                        <h2 lang="ja">
+                          {flipped[card.id] ? card.definition : card.japanese}
+                        </h2>
+
+                        {flipped[card.id] && card.reading && (
+                          <p>{card.reading}</p>
+                        )}
+
+                        <span className="flashcard-hint">Click to flip</span>
+                      </button>
+
+                      <div className="flashcard-actions">
+                        <button
+                          className="flashcard-edit-btn"
+                          onClick={() => setEditing({ ...card })}
+                        >
+                          Edit
+                        </button>
+
+                        <button
+                          className="flashcard-remove"
+                          onClick={() => removeCard(card.id)}
+                        >
+                          Remove
+                        </button>
+                      </div>
+                    </div>
+                  )
+                )}
+              </div>
+            </>
+          )}
         </>
       )}
     </div>
