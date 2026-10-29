@@ -10,8 +10,6 @@ import {
 } from '../lib/flashcardsApi.js'
 import { addDays, dayOfWeek } from '../../../shared/practiceDay.js'
 import { pickNextCard, RECENT_BUFFER_SIZE, reviewCard } from '../../../shared/srs.js'
-import { pickNextCard, RECENT_BUFFER_SIZE, reviewCard } from '../srs.js'
-import TopBar from '../TopBar.jsx'
 import PremadeDecks from './PremadeDecks.jsx'
 import './Flashcards.css'
 
@@ -414,36 +412,6 @@ export default function Flashcards({ onBack }) {
       deckTitle: null,
     })
     setPracticeFlipped(false)
-    setPracticeFeedback(null)
-    setPracticeSaveError(false)
-  }
-
-  // Practice a premade deck. Cards get the full SRS schedule fields so
-  // reviewCard / pickNextCard work, but they live only in memory:
-  // they are never added to your flashcards or sent to the API.
-  function studyDeck(found, title) {
-    const now = new Date()
-    const deckCards = found.map((card, index) => ({
-      ...card,
-      id: `premade-${index}-${card.japanese}`,
-      dueAt: now.toISOString(),
-      intervalDays: 0,
-      ease: 2.5,
-      streak: 0,
-      lapses: 0,
-      lastReviewedAt: null,
-    }))
-
-    setPractice({
-      currentId: pickNextCard(deckCards, { now })?.id ?? null,
-      recentIds: [],
-      reviewed: 0,
-      dueCount: countDue(deckCards, now),
-      ahead: false,
-      deckCards,
-      deckTitle: title,
-    })
-    setPracticeFlipped(false)
     setPracticeSaveError(false)
   }
 
@@ -505,8 +473,6 @@ export default function Flashcards({ onBack }) {
       const { srsGrade } = PRACTICE_GRADES.find((option) => option.grade === grade)
       const now = new Date()
       const schedule = reviewCard(card, srsGrade, now)
-      const nextCards = cards.map((candidate) =>
-      const schedule = reviewCard(card, grade, now)
       const nextCards = list.map((candidate) =>
         candidate.id === card.id ? { ...candidate, ...schedule } : candidate
       )
@@ -532,6 +498,9 @@ export default function Flashcards({ onBack }) {
       })
       setPracticeFlipped(false)
 
+      // Premade deck reviews are never sent to the server.
+      if (isDeck) return
+
       // Don't make the learner wait on the network between cards. The local
       // schedule above uses the same shared/srs.js as the server; the
       // server's saved copy replaces it when it arrives.
@@ -553,13 +522,6 @@ export default function Flashcards({ onBack }) {
           console.error('Failed to save review:', err)
           setPracticeSaveError(true)
         })
-      // Don't make the learner wait on the network between cards.
-      if (!isDeck) {
-        reviewFlashcard(card.id, schedule).catch((err) => {
-          console.error('Failed to save review:', err)
-          setPracticeSaveError(true)
-        })
-      }
     },
     [cards, practice]
   )
@@ -616,7 +578,9 @@ export default function Flashcards({ onBack }) {
         return
       }
 
+      // Premade deck cards aren't saved, so they can't be edited.
       if (key === 'E') {
+        if (practice.deckCards) return
         const card = cards.find(
           (candidate) => candidate.id === practice.currentId
         )
@@ -682,6 +646,10 @@ export default function Flashcards({ onBack }) {
 
         <main className="flashcards-practice">
           <div className="flashcard-stage">
+            {practice.deckTitle && (
+              <p className="flashcard-progress">{practice.deckTitle}</p>
+            )}
+
             {practiceSaveError && (
               <p className="error-text anki-save-error" role="alert">
                 Some reviews could not be saved. Check your connection.
@@ -712,7 +680,10 @@ export default function Flashcards({ onBack }) {
                   <div className="anki-definition-panel">
                     <span className="anki-definition-label">Definition</span>
                     {definitionLines.map((line, index) => {
-                      const { reading, gloss } = splitDefinitionLine(line)
+                      // Premade definitions have no "reading" prefix to split off.
+                      const { reading, gloss } = isDeck
+                        ? { reading: '', gloss: line }
+                        : splitDefinitionLine(line)
                       return (
                         <p className="anki-definition-line" key={index}>
                           {reading && <b>{reading} </b>}
@@ -722,44 +693,10 @@ export default function Flashcards({ onBack }) {
                     })}
                   </div>
                 )}
-          {card ? (
-            <>
-              <p className="flashcard-progress">
-                {practice.deckTitle ? `${practice.deckTitle} · ` : ''}
-                Reviewed {practice.reviewed} ·{' '}
-                {practice.ahead
-                  ? 'practicing ahead'
-                  : `${practice.dueCount} ${isDeck ? 'left' : 'due'}`}
-              </p>
-
-              <button
-                className="flashcard flashcard-practice-card"
-                onClick={() => setPracticeFlipped((isFlipped) => !isFlipped)}
-              >
-                <span className="flashcard-label">
-                  {practiceFlipped ? 'DEFINITION' : 'JAPANESE'}
-                </span>
-                <h2 lang="ja">
-                  {practiceFlipped ? card.definition : card.japanese}
-                </h2>
-                {practiceFlipped && card.reading && <p>{card.reading}</p>}
-                <span className="flashcard-hint">Click to flip</span>
-              </button>
-
-              <div className="flashcard-practice-actions">
-                {PRACTICE_GRADES.map(({ grade, label }) => (
-                  <button
-                    key={grade}
-                    className={`flashcard-practice-${grade}`}
-                    onClick={() => gradePractice(grade)}
-                  >
-                    {label}
-                  </button>
-                ))}
               </div>
             ) : (
               <section className="flashcard-practice-done">
-                <h2>You're all caught up</h2>
+                <h2>{isDeck ? 'Deck complete' : "You're all caught up"}</h2>
                 <p>
                   {practice.reviewed === 0
                     ? 'No cards are due right now.'
@@ -782,52 +719,24 @@ export default function Flashcards({ onBack }) {
                   className="flashcard-practice-start"
                   onClick={exitPractice}
                 >
-                  Back to flashcards
+                  {isDeck ? 'Back to decks' : 'Back to flashcards'}
                 </button>
               </section>
             )}
           </div>
-            </>
-          ) : (
-            <section className="flashcard-practice-done">
-              <h2>{isDeck ? 'Deck complete' : "You're all caught up"}</h2>
-              <p>
-                {practice.reviewed === 0
-                  ? 'No cards are due right now.'
-                  : `You reviewed ${practice.reviewed} ${
-                      practice.reviewed === 1 ? 'card' : 'cards'
-                    }.`}
-              </p>
-              {nextDueAt && (
-                <p>Next card due {formatDueAt(nextDueAt)}.</p>
-              )}
-              {canPracticeAhead && (
-                <button
-                  className="flashcard-practice-start"
-                  onClick={practiceAhead}
-                >
-                  Practice more
-                </button>
-              )}
-              <button
-                className="flashcard-practice-start"
-                onClick={exitPractice}
-              >
-                {isDeck ? 'Back to decks' : 'Back to flashcards'}
-              </button>
-            </section>
-          )}
         </main>
 
         {card && (
           <div className="anki-bottom-bar">
-            <button
-              type="button"
-              className="anki-edit-btn"
-              onClick={() => setEditing({ ...card })}
-            >
-              Edit
-            </button>
+            {!isDeck && (
+              <button
+                type="button"
+                className="anki-edit-btn"
+                onClick={() => setEditing({ ...card })}
+              >
+                Edit
+              </button>
+            )}
 
             {practiceFlipped ? (
               <div className="anki-grade-buttons">
@@ -1031,38 +940,8 @@ export default function Flashcards({ onBack }) {
             }}
           />
         )}
-  return (
-    <div style={{ padding: 24 }}>
-      {onBack && <button onClick={onBack}>← Back to Bookshelf</button>}
-      <h1>Flashcards</h1>
-
-      <div className="flashcards-tabs" role="tablist">
-        <button
-          className="flashcards-tab"
-          role="tab"
-          aria-selected={tab === 'mine'}
-          onClick={() => setTab('mine')}
-        >
-          My Flashcards
-        </button>
-        <button
-          className="flashcards-tab"
-          role="tab"
-          aria-selected={tab === 'decks'}
-          onClick={() => setTab('decks')}
-        >
-          Decks
-        </button>
-      </div>
-
-      {tab === 'decks' ? (
-        <PremadeDecks onStudy={studyDeck} />
-      ) : (
-        <>
-          <p>Click a card to reveal its definition.</p>
 
         {error && <p className="error-text">{error}</p>}
-          {error && <p className="error-text">{error}</p>}
 
         {cards.length === 0 ? (
           <p>No flashcards saved yet. Save a word from its definition popup!</p>
@@ -1173,37 +1052,6 @@ export default function Flashcards({ onBack }) {
                   required
                 />
               </label>
-          {loading ? (
-            <p className="flashcards-empty">Loading flashcards…</p>
-          ) : cards.length === 0 ? (
-            !error && (
-              <p>No flashcards saved yet. Save a word from its definition popup!</p>
-            )
-          ) : (
-            <>
-              <button
-                className="flashcard-practice-start"
-                onClick={() => startPractice()}
-              >
-                Practice
-              </button>
-              <div className="flashcards-grid">
-                {cards.map((card) =>
-                  editing?.id === card.id ? (
-                    <form
-                      className="flashcard-item flashcard-edit"
-                      key={card.id}
-                      onSubmit={saveEdit}
-                    >
-                      <label>
-                        Japanese
-                        <input
-                          lang="ja"
-                          value={editing.japanese}
-                          onChange={editField('japanese')}
-                          required
-                        />
-                      </label>
 
               <label>
                 Reading
@@ -1213,14 +1061,6 @@ export default function Flashcards({ onBack }) {
                   onChange={editField('reading')}
                 />
               </label>
-                      <label>
-                        Reading
-                        <input
-                          lang="ja"
-                          value={editing.reading}
-                          onChange={editField('reading')}
-                        />
-                      </label>
 
               <label>
                 Definition
@@ -1231,15 +1071,6 @@ export default function Flashcards({ onBack }) {
                   required
                 />
               </label>
-                      <label>
-                        Definition
-                        <textarea
-                          rows={4}
-                          value={editing.definition}
-                          onChange={editField('definition')}
-                          required
-                        />
-                      </label>
 
               <div className="flashcard-row-edit-actions">
                 <button type="button" onClick={() => setEditing(null)}>
@@ -1263,8 +1094,8 @@ export default function Flashcards({ onBack }) {
       )}
 
       <div className="flashcards-page-header">
-        <h1>My Flashcards</h1>
-        {cards.length > 0 && (
+        <h1>Flashcards</h1>
+        {tab === 'mine' && cards.length > 0 && (
           <div className="flashcards-header-actions">
             <button
               className="flashcard-browse-start"
@@ -1279,74 +1110,43 @@ export default function Flashcards({ onBack }) {
         )}
       </div>
 
-      {error && <p className="error-text">{error}</p>}
+      <div className="flashcards-tabs" role="tablist">
+        <button
+          className="flashcards-tab"
+          role="tab"
+          aria-selected={tab === 'mine'}
+          onClick={() => setTab('mine')}
+        >
+          My Flashcards
+        </button>
+        <button
+          className="flashcards-tab"
+          role="tab"
+          aria-selected={tab === 'decks'}
+          onClick={() => setTab('decks')}
+        >
+          Decks
+        </button>
+      </div>
 
-      {loading ? (
-        <p className="flashcards-empty">Loading flashcards…</p>
-      ) : cards.length === 0 ? (
-        !error && (
-          <p>No flashcards saved yet. Save a word from its definition popup!</p>
-        )
+      {tab === 'decks' ? (
+        <PremadeDecks onStudy={studyDeck} />
       ) : (
         <>
-          <p className="flashcards-count">
-            {cards.length} {cards.length === 1 ? 'card' : 'cards'}
-          </p>
-          {stats && <PracticeStats stats={stats} />}
-                      <div className="flashcard-actions">
-                        <button type="submit" className="flashcard-save">
-                          Save
-                        </button>
-                        <button type="button" onClick={() => setEditing(null)}>
-                          Cancel
-                        </button>
-                      </div>
-                    </form>
-                  ) : (
-                    <div className="flashcard-item" key={card.id}>
-                      <button
-                        className="flashcard"
-                        onClick={() =>
-                          setFlipped((prev) => ({
-                            ...prev,
-                            [card.id]: !prev[card.id],
-                          }))
-                        }
-                      >
-                        <span className="flashcard-label">
-                          {flipped[card.id] ? 'DEFINITION' : 'JAPANESE'}
-                        </span>
+          {error && <p className="error-text">{error}</p>}
 
-                        <h2 lang="ja">
-                          {flipped[card.id] ? card.definition : card.japanese}
-                        </h2>
-
-                        {flipped[card.id] && card.reading && (
-                          <p>{card.reading}</p>
-                        )}
-
-                        <span className="flashcard-hint">Click to flip</span>
-                      </button>
-
-                      <div className="flashcard-actions">
-                        <button
-                          className="flashcard-edit-btn"
-                          onClick={() => setEditing({ ...card })}
-                        >
-                          Edit
-                        </button>
-
-                        <button
-                          className="flashcard-remove"
-                          onClick={() => removeCard(card.id)}
-                        >
-                          Remove
-                        </button>
-                      </div>
-                    </div>
-                  )
-                )}
-              </div>
+          {loading ? (
+            <p className="flashcards-empty">Loading flashcards…</p>
+          ) : cards.length === 0 ? (
+            !error && (
+              <p>No flashcards saved yet. Save a word from its definition popup!</p>
+            )
+          ) : (
+            <>
+              <p className="flashcards-count">
+                {cards.length} {cards.length === 1 ? 'card' : 'cards'}
+              </p>
+              {stats && <PracticeStats stats={stats} />}
             </>
           )}
         </>
