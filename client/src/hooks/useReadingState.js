@@ -1,31 +1,74 @@
 import { useEffect, useRef, useState } from 'react'
-import { capturePosition, loadReadingState, restorePosition, saveReadingState } from '../readingState.js'
+import { createBookmark, deleteBookmark, saveReadingPosition } from '../lib/booksApi.js'
+import { capturePosition, restorePosition } from '../readingState.js'
 
-export default function useReadingState(bookId, iframeRef, clipRef) {
-  const [state, setState] = useState(() => loadReadingState(bookId))
-  const [storageError, setStorageError] = useState('')
+// Scrolling captures a position every 250ms; send at most one every few
+// seconds, plus a final one when the reader closes or the page hides.
+const SAVE_INTERVAL_MS = 3000
+
+const SAVE_ERROR = 'Your reading progress could not be saved to your account. Check your connection.'
+
+// initialState is { position, bookmarks } as loaded by loadReadingState()
+// in booksApi.js before the reader opened.
+export default function useReadingState(bookId, initialState, iframeRef, clipRef) {
+  const [state, setState] = useState(initialState)
+  const [syncError, setSyncError] = useState('')
   const stateRef = useRef(state)
   const ready = useRef(false)
   const vertical = useRef(true)
   const timer = useRef(null)
+  const saveTimer = useRef(null)
+  const unsaved = useRef(null)
+  const lastSent = useRef(JSON.stringify(initialState.position))
   const flushRef = useRef(null)
 
-  function write(next) {
+  function update(next) {
     stateRef.current = next
     setState(next)
-    setStorageError(saveReadingState(bookId, next) ? '' : 'Reading progress and bookmarks could not be saved. Check your browser storage.')
   }
 
-  function flush() {
+  function sendUnsaved(keepalive = false) {
+    clearTimeout(saveTimer.current)
+    saveTimer.current = null
+    const position = unsaved.current
+    unsaved.current = null
+    if (!position) return
+    const json = JSON.stringify(position)
+    if (json === lastSent.current) return
+    lastSent.current = json
+    saveReadingPosition(bookId, position, { keepalive })
+      .then(() => setSyncError(''))
+      .catch((error) => {
+        console.error('Failed to save reading position:', error)
+        lastSent.current = null
+        setSyncError(SAVE_ERROR)
+      })
+  }
+
+  function savePosition(position, now) {
+    unsaved.current = position
+    if (now) sendUnsaved(true)
+    else saveTimer.current ??= setTimeout(() => sendUnsaved(), SAVE_INTERVAL_MS)
+  }
+
+  // Captures the current position and returns it. `now` sends it right away
+  // instead of waiting for the next batched save.
+  function flush({ now = false } = {}) {
     clearTimeout(timer.current)
-    if (!ready.current) return
-    const position = capturePosition(iframeRef.current, clipRef.current, vertical.current)
-    if (position) write({ ...stateRef.current, position })
+    if (ready.current) {
+      const position = capturePosition(iframeRef.current, clipRef.current, vertical.current)
+      if (position) {
+        update({ ...stateRef.current, position })
+        savePosition(position, now)
+      }
+    }
+    if (now) sendUnsaved(true)
+    return stateRef.current.position
   }
   useEffect(() => { flushRef.current = flush })
 
   useEffect(() => {
-    const save = () => flushRef.current()
+    const save = () => flushRef.current({ now: true })
     const onVisibility = () => { if (document.visibilityState === 'hidden') save() }
     window.addEventListener('pagehide', save)
     document.addEventListener('visibilitychange', onVisibility)
@@ -53,7 +96,7 @@ export default function useReadingState(bookId, iframeRef, clipRef) {
     flush()
   }
 
-  function addBookmark() {
+  async function addBookmark() {
     if (!ready.current) return
     const position = capturePosition(iframeRef.current, clipRef.current, vertical.current)
     if (!position) return
@@ -61,15 +104,23 @@ export default function useReadingState(bookId, iframeRef, clipRef) {
       JSON.stringify(item.position.path) === JSON.stringify(position.path) &&
       item.position.offset === position.offset && Math.abs(item.position.progress - position.progress) < 0.001)
     if (duplicate) return
-    write({ ...stateRef.current, position, bookmarks: [...stateRef.current.bookmarks, {
-      id: crypto.randomUUID(), position,
-      label: position.excerpt || `Bookmark at ${Math.round(position.progress * 100)}%`,
-      createdAt: Date.now(),
-    }] })
+    update({ ...stateRef.current, position })
+    savePosition(position)
+    try {
+      const bookmark = await createBookmark(bookId, {
+        label: position.excerpt || `Bookmark at ${Math.round(position.progress * 100)}%`,
+        position,
+      })
+      update({ ...stateRef.current, bookmarks: [...stateRef.current.bookmarks, bookmark] })
+      setSyncError('')
+    } catch (error) {
+      console.error('Failed to save bookmark:', error)
+      setSyncError('The bookmark could not be saved. Check your connection.')
+    }
   }
 
   return {
-    state, storageError, beforeLayout, afterLayout, flush, addBookmark,
+    state, syncError, beforeLayout, afterLayout, flush, addBookmark,
     onScroll() {
       if (!ready.current) return
       clearTimeout(timer.current)
@@ -80,8 +131,15 @@ export default function useReadingState(bookId, iframeRef, clipRef) {
       restorePosition(iframeRef.current, clipRef.current, vertical.current, bookmark.position)
       flush()
     },
-    removeBookmark(id) {
-      write({ ...stateRef.current, bookmarks: stateRef.current.bookmarks.filter((item) => item.id !== id) })
+    async removeBookmark(id) {
+      try {
+        await deleteBookmark(bookId, id)
+        update({ ...stateRef.current, bookmarks: stateRef.current.bookmarks.filter((item) => item.id !== id) })
+        setSyncError('')
+      } catch (error) {
+        console.error('Failed to remove bookmark:', error)
+        setSyncError('The bookmark could not be removed. Check your connection.')
+      }
     },
   }
 }

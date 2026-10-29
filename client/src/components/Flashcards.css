@@ -1,64 +1,269 @@
-.flashcards-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
-  gap: 20px;
-  margin-top: 24px;
+.flashcards-page {
+  padding: 24px;
+  color: var(--text-h);
 }
 
-.flashcard-item {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-}
-
-.flashcard {
-  width: 100%;
-  min-height: 220px;
-  padding: 20px;
-  border: 1px solid #ddd;
-  border-radius: 12px;
-  background: white;
-  color: #222;
+.flashcards-back-btn {
+  padding: 6px 12px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg);
+  color: var(--text-h);
   cursor: pointer;
-  text-align: center;
-  overflow-wrap: anywhere;
-  box-shadow: 0 3px 8px rgba(0, 0, 0, 0.08);
-  transition: transform 0.2s, box-shadow 0.2s;
 }
 
-.flashcard:hover {
-  transform: translateY(-3px);
-  box-shadow: 0 5px 14px rgba(0, 0, 0, 0.14);
+.flashcards-page-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-top: 12px;
 }
 
-.flashcard-label {
-  display: block;
-  color: #777;
+.flashcards-page-header h1 {
+  margin: 0;
+}
+
+.flashcard-stats-panel {
+  margin: 16px 0 0;
+}
+
+.flashcard-stats {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+  gap: 8px;
+  margin: 0;
+}
+
+.flashcard-stat {
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--code-bg);
+}
+
+.flashcard-stat dt {
+  color: var(--text);
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.flashcard-stat dd {
+  margin: 4px 0 0;
+  font-size: 22px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.flashcard-stat .flashcard-stat-note {
+  margin-top: 2px;
+  color: var(--text);
+  font-size: 11px;
+  font-weight: 400;
+}
+
+.flashcard-stages {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 16px;
+  margin: 12px 0 0;
+  padding: 0;
+  list-style: none;
+  color: var(--text);
+  font-size: 13px;
+}
+
+.flashcard-stages strong {
+  color: var(--text-h);
+  font-variant-numeric: tabular-nums;
+}
+
+.flashcard-stage-dot {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  margin-right: 6px;
+  border-radius: 50%;
+}
+
+.flashcard-stage-new { background: #4a7fc1; }
+.flashcard-stage-learning { background: #c1773a; }
+.flashcard-stage-young { background: #7fb88f; }
+.flashcard-stage-mature { background: #2a7a4b; }
+
+.review-heatmap {
+  margin: 12px 0 0;
+}
+
+.review-heatmap figcaption {
+  margin-bottom: 6px;
+  color: var(--text);
   font-size: 12px;
-  letter-spacing: 1px;
 }
 
-.flashcard h2 {
-  font-size: 24px;
-  line-height: 1.5;
-  white-space: pre-line;
-  overflow-wrap: anywhere;
+.review-heatmap-scroll {
+  overflow-x: auto;
 }
 
-.flashcard-hint {
-  display: block;
-  margin-top: 20px;
-  color: #888;
+.review-heatmap-grid {
+  display: grid;
+  grid-auto-flow: column;
+  grid-template-rows: repeat(7, 10px);
+  grid-auto-columns: 10px;
+  gap: 3px;
+  width: max-content;
+}
+
+.review-heatmap-day {
+  border-radius: 2px;
+  background: var(--border);
+}
+
+.review-heatmap-level-1 { background: rgba(42, 122, 75, 0.35); }
+.review-heatmap-level-2 { background: rgba(42, 122, 75, 0.55); }
+.review-heatmap-level-3 { background: rgba(42, 122, 75, 0.8); }
+.review-heatmap-level-4 { background: #2a7a4b; }
+
+.flashcards-search {
+  box-sizing: border-box;
+  width: 100%;
+  max-width: 480px;
+  margin: 4px 0 12px;
+  padding: 8px 12px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg);
+  color: var(--text-h);
+  font: inherit;
+  font-size: 14px;
+}
+
+.flashcards-count {
+  margin: 10px 0;
+  color: var(--text);
+  font-size: 13px;
+}
+
+.flashcards-table {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.flashcards-table-header,
+.flashcards-row {
+  display: grid;
+  grid-template-columns: minmax(110px, 1fr) minmax(80px, 1fr) minmax(160px, 3fr) 120px 64px 52px 64px 150px;
+  gap: 12px;
+  align-items: center;
+  padding: 0 12px;
+}
+
+.flashcards-table-header {
+  height: 34px;
+  border-bottom: 1px solid var(--border);
+  background: var(--code-bg);
+  color: var(--text);
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.flashcards-table-scroll {
+  /* The table has the Browse page to itself, so fill the window below the
+     header and search box */
+  height: max(240px, calc(100vh - 240px));
+  overflow-y: auto;
+}
+
+.flashcards-table-spacer {
+  position: relative;
+  width: 100%;
+}
+
+.flashcards-table-body {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+}
+
+.flashcards-row {
+  border-bottom: 1px solid var(--border);
+  font-size: 13px;
+}
+
+.flashcards-row:last-child {
+  border-bottom: none;
+}
+
+.flashcards-cell {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  color: var(--text-h);
+}
+
+.flashcards-cell-definition {
+  color: var(--text);
+}
+
+.flashcards-cell-word {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.flashcards-cell-word > span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.flashcards-cell-number {
+  color: var(--text);
   font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+
+.flashcard-leech-badge {
+  flex-shrink: 0;
+  padding: 1px 6px;
+  border: 1px solid #b4443a;
+  border-radius: 999px;
+  background: transparent;
+  color: #b4443a;
+  font-size: 10px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.flashcard-leech-badge:hover {
+  background: #b4443a;
+  color: white;
+}
+
+.flashcards-cell-due {
+  color: var(--text);
+  font-size: 12px;
+}
+
+.flashcards-row-actions {
+  display: flex;
+  gap: 6px;
+  overflow: visible;
 }
 
 .flashcard-remove {
-  padding: 8px 12px;
+  padding: 4px 10px;
   border: 1px solid #d33;
   border-radius: 6px;
   background: white;
   color: #c22;
   cursor: pointer;
+  font-size: 12px;
 }
 
 .flashcard-remove:hover {
@@ -70,60 +275,107 @@
   margin-top: 24px;
   color: #777;
 }
-.flashcard-actions {
-  display: flex;
-  gap: 8px;
-}
 
-.flashcard-actions > button {
-  flex: 1;
-  padding: 8px 12px;
-  border-radius: 6px;
-  cursor: pointer;
-}
-
-.flashcard-edit-btn,
-.flashcard-actions > button[type='button'] {
+.flashcard-edit-btn {
+  padding: 4px 10px;
   border: 1px solid #bbb;
+  border-radius: 6px;
   background: white;
   color: #222;
+  cursor: pointer;
+  font-size: 12px;
 }
 
-.flashcard-edit-btn:hover,
-.flashcard-actions > button[type='button']:hover {
+.flashcard-edit-btn:hover {
   background: #f2f2f2;
 }
 
-.flashcard-save {
-  border: 1px solid #2a7a4b;
-  background: #2a7a4b;
-  color: white;
+.flashcard-row-edit-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 10;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.4);
 }
 
-.flashcard-edit {
-  padding: 16px;
-  border: 1px solid #ddd;
-  border-radius: 12px;
-  background: white;
-  color: #222;
+.flashcard-row-edit-dialog {
+  width: min(100% - 32px, 420px);
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 20px;
+  border-radius: 10px;
+  background: var(--bg);
+  color: var(--text-h);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.2);
 }
 
-.flashcard-edit label {
+.flashcard-row-edit-dialog h2 {
+  margin: 0;
+  font-size: 18px;
+}
+
+.flashcard-row-edit-dialog label {
   display: flex;
   flex-direction: column;
   gap: 4px;
   font-size: 12px;
-  color: #777;
+  color: var(--text);
 }
 
-.flashcard-edit input,
-.flashcard-edit textarea {
-  padding: 6px 8px;
-  border: 1px solid #ccc;
+.flashcard-row-edit-dialog input,
+.flashcard-row-edit-dialog textarea {
+  padding: 8px 10px;
+  border: 1px solid var(--border);
   border-radius: 6px;
+  background: var(--bg);
+  color: var(--text-h);
   font: inherit;
-  font-size: 15px;
-  color: #222;
+  font-size: 14px;
+}
+
+.flashcard-row-edit-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 4px;
+}
+
+.flashcard-row-edit-actions button {
+  padding: 8px 16px;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 13px;
+}
+
+.flashcard-row-edit-actions button[type='submit'] {
+  background: var(--accent);
+  color: #fff;
+  font-weight: 600;
+}
+
+.flashcard-row-edit-actions button[type='button'] {
+  border: 1px solid var(--border);
+  background: var(--bg);
+  color: var(--text-h);
+}
+
+.flashcards-header-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.flashcard-browse-start {
+  margin-top: 8px;
+  padding: 8px 16px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg);
+  color: var(--text-h);
+  cursor: pointer;
 }
 
 .flashcard-practice-start {
@@ -137,102 +389,338 @@
 }
 
 .flashcards-practice-page {
-  min-height: 100vh;
+  height: 100vh;
   display: flex;
   flex-direction: column;
+  background: #2c2c2c;
+  color: #eee;
+}
+
+.anki-counter {
+  position: absolute;
+  top: 16px;
+  right: 20px;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  color: #999;
+  font-size: 14px;
+}
+
+.anki-counter-caret {
+  font-size: 10px;
 }
 
 .flashcards-practice {
-  width: min(100% - 32px, 640px);
-  margin: 0 auto;
-  padding: 32px 0;
+  width: 100%;
+  margin: 0;
+  padding: 0;
   display: flex;
   flex: 1;
+  min-height: 0;
   flex-direction: column;
-  justify-content: center;
 }
 
-.flashcard-progress {
-  margin: 0 0 12px;
-  color: #777;
+.flashcard-stage {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  padding: 48px 16px;
+  overflow: auto;
+}
+
+.anki-save-error {
   text-align: center;
 }
 
-.flashcard-practice-card {
-  min-height: 320px;
-}
-
-.flashcard-practice-actions {
+.anki-card-area {
   display: flex;
-  gap: 12px;
-  margin-top: 16px;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+  width: min(100%, 560px);
 }
 
-.flashcard-practice-actions button {
-  flex: 1;
-  padding: 12px;
-  border: 1px solid;
-  border-radius: 6px;
-  color: white;
+.anki-word-panel {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+  width: 100%;
+  padding: 28px 24px;
+  border: none;
+  background: transparent;
+  color: inherit;
   cursor: pointer;
   font: inherit;
 }
 
-.flashcard-practice-fail {
-  border-color: #b33 !important;
-  background: #b33;
+.anki-reading {
+  color: #d8b4fe;
+  font-size: 18px;
+  letter-spacing: 1px;
 }
 
-.flashcard-practice-hard {
-  border-color: #c76a1a !important;
-  background: #c76a1a;
+.anki-word {
+  color: #eee;
+  font-size: clamp(40px, 8vw, 72px);
+  line-height: 1.3;
+  font-weight: 400;
+  overflow-wrap: anywhere;
 }
 
-.flashcard-practice-medium {
-  border-color: #2f6fb0 !important;
-  background: #2f6fb0;
+.anki-word-answer {
+  color: #c084fc;
 }
 
-.flashcard-practice-easy {
-  border-color: #2a7a4b !important;
-  background: #2a7a4b;
-}
-
-.flashcard-practice-done {
-  text-align: center;
-}
-
-.flashcard-practice-feedback {
-  margin: 0 0 12px;
-  padding: 10px 14px;
-  border: 1px solid;
+.anki-definition-panel {
+  width: 100%;
+  padding: 16px 18px;
+  border-left: 4px solid #eee;
   border-radius: 6px;
-  text-align: center;
+  background: #242424;
+  text-align: left;
+}
+
+.anki-definition-label {
+  display: block;
+  margin-bottom: 8px;
+  color: #888;
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+}
+
+.anki-definition-line {
+  margin: 0 0 6px;
+  color: #eee;
+  font-size: 16px;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+
+.anki-definition-line:last-child {
+  margin-bottom: 0;
+}
+
+.anki-definition-line b {
+  color: #e9d5ff;
   font-weight: 600;
 }
 
-.flashcard-practice-feedback-easy {
-  border-color: #2a7a4b;
-  background: #edf7f0;
-  color: #205f3a;
+.flashcard-practice-done {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  text-align: center;
+  color: #eee;
 }
 
-.flashcard-practice-feedback-medium {
-  border-color: #2f6fb0;
-  background: #eef5fc;
-  color: #234f7c;
+.anki-bottom-bar {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 4px 14px;
+  border-top: 1px solid #333;
+  background: #242424;
 }
 
-.flashcard-practice-feedback-hard {
-  border-color: #c76a1a;
-  background: #fff5ea;
-  color: #8a4710;
+.anki-edit-btn,
+.anki-more-btn {
+  padding: 5px 12px;
+  border: none;
+  border-radius: 999px;
+  background: #2c2c2c;
+  color: #eee;
+  cursor: pointer;
+  font-size: 12px;
 }
 
-.flashcard-practice-feedback-fail {
-  border-color: #b33;
-  background: #fff0f0;
-  color: #922;
+.anki-edit-btn:hover,
+.anki-more-btn:hover {
+  background: #3a3a3a;
+}
+
+.anki-grade-buttons {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+
+.anki-grade-col {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0;
+}
+
+.anki-grade-interval {
+  color: #888;
+  font-size: 10px;
+  line-height: 1.3;
+}
+
+.anki-grade-btn {
+  min-width: 96px;
+  padding: 4px 14px;
+  border: none;
+  border-radius: 999px;
+  background: #2c2c2c;
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.anki-grade-btn:hover {
+  background: #3a3a3a;
+}
+
+.anki-grade-fail {
+  color: #ff8a8a;
+}
+
+.anki-grade-pass {
+  color: #8affa8;
+}
+
+.anki-show-answer-btn {
+  min-width: 160px;
+  padding: 4px 20px;
+  border: none;
+  border-radius: 999px;
+  background: #2c2c2c;
+  color: #eee;
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.anki-show-answer-btn:hover {
+  background: #3a3a3a;
+}
+
+.anki-more-menu {
+  position: relative;
+}
+
+.anki-more-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 3;
+  border: none;
+  background: transparent;
+  cursor: default;
+}
+
+.anki-more-dropdown {
+  position: absolute;
+  bottom: calc(100% + 8px);
+  right: 0;
+  z-index: 4;
+  display: flex;
+  flex-direction: column;
+  min-width: 160px;
+  border: 1px solid #3a3a3a;
+  border-radius: 8px;
+  background: #242424;
+  overflow: hidden;
+}
+
+.anki-more-dropdown button {
+  padding: 10px 14px;
+  border: none;
+  background: transparent;
+  color: #eee;
+  text-align: left;
+  cursor: pointer;
+  font-size: 14px;
+}
+
+.anki-more-dropdown button:hover {
+  background: #2f2f2f;
+}
+
+.anki-edit-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 10;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.6);
+}
+
+.anki-edit-dialog {
+  width: min(100% - 32px, 420px);
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 20px;
+  border-radius: 10px;
+  background: #242424;
+  color: #eee;
+}
+
+.anki-edit-dialog h2 {
+  margin: 0;
+  font-size: 18px;
+}
+
+.anki-edit-dialog label {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 12px;
+  color: #999;
+}
+
+.anki-edit-dialog input,
+.anki-edit-dialog textarea {
+  padding: 8px 10px;
+  border: 1px solid #3a3a3a;
+  border-radius: 6px;
+  background: #1a1a1a;
+  color: #eee;
+  font: inherit;
+  font-size: 14px;
+}
+
+.anki-edit-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 4px;
+}
+
+.anki-edit-actions button {
+  padding: 8px 16px;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 13px;
+}
+
+.anki-edit-actions button[type='submit'] {
+  background: #aa3bff;
+  color: #fff;
+  font-weight: 600;
+}
+
+.anki-edit-actions button[type='button'] {
+  background: #2c2c2c;
+  color: #eee;
 }
 
 .flashcard-hotkey-backdrop {

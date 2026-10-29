@@ -72,13 +72,24 @@ export async function updateFlashcard(id, changes) {
   }
 }
 
-// Saves the schedule computed by reviewCard() in srs.js. Doesn't reset
-// the saved-words cache: grading a card doesn't change which words exist.
-export function reviewFlashcard(id, schedule) {
+// Grades a card; the server computes and saves the new schedule (with the
+// same shared/srs.js), logs the review for stats, and returns the updated
+// card. durationMs is how long the card was shown before being graded.
+// Doesn't reset the saved-words cache: grading a card doesn't change which
+// words exist.
+export function reviewFlashcard(id, grade, durationMs) {
   return request(`/api/flashcards/${id}/review`, {
     method: 'POST',
-    body: JSON.stringify(schedule),
+    body: JSON.stringify({ grade, durationMs }),
   })
+}
+
+// Practice stats: today, the past week, streak, retention, cards due soon,
+// and a year of daily review counts. Days are the learner's local practice
+// days (see shared/practiceDay.js), so send this browser's time zone.
+export function getFlashcardStats() {
+  const { timeZone } = Intl.DateTimeFormat().resolvedOptions()
+  return request(`/api/flashcards/stats?timeZone=${encodeURIComponent(timeZone)}`)
 }
 
 export async function deleteFlashcard(id) {

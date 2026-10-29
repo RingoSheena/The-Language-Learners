@@ -1,7 +1,7 @@
 import { useMemo, useRef, useState } from 'react'
 import TopBar from './TopBar.jsx'
 import './Bookshelf.css'
-import { loadReadingState } from './readingState.js'
+import { loadLocalReadingState } from './readingState.js'
 
 function Bookshelf({
   books,
@@ -113,7 +113,8 @@ function Bookshelf({
         ) : (
           <div className="bookshelf-grid">
             {sortedBooks.map((book) => {
-              const { position } = loadReadingState(book.id)
+              // Books not opened since progress started syncing only have it locally
+              const position = book.readingPosition ?? loadLocalReadingState(book.id).position
               return (
               <div key={book.id} className="book-card">
                 <button

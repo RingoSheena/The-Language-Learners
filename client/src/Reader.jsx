@@ -3,7 +3,7 @@ import TopBar from './TopBar.jsx'
 import ReadingSettingsPanel from './ReadingSettingsPanel.jsx'
 import { loadPreferences, savePreferences } from './readingPreferences.js'
 import { flattenBook } from './epubFlatten.js'
-import { useJapaneseHover, useHoverToggle } from './hooks/useJapaneseHover.js' // NEW
+import { useJapaneseHover, useDefinitionHotkey } from './hooks/useJapaneseHover.js' // NEW
 import DefinitionPopup from './components/DefinitionPopup.jsx' // NEW
 import './Reader.css'
 import useReadingState from './hooks/useReadingState.js'
@@ -263,7 +263,7 @@ function Reader({ book, onBack }) {
   const viewerRef = useRef(null)
   const clipRef = useRef(null)
   const iframeRef = useRef(null)
-  const reading = useReadingState(book.id, iframeRef, clipRef)
+  const reading = useReadingState(book.id, book.readingState, iframeRef, clipRef)
   const preferencesRef = useRef(preferences)
   useEffect(() => { preferencesRef.current = preferences }, [preferences])
   const isSettingsOpenRef = useRef(isSettingsOpen)
@@ -275,11 +275,13 @@ function Reader({ book, onBack }) {
     pageTurnHandlerRef.current = createPageTurnHandler(clipRef, isSettingsOpenRef)
   }
 
-  // NEW: hover-to-define. hoverOn is the "Definitions: On/Off" switch;
+  // NEW: hover-to-define. Hold the chosen hotkey (configurable in Display
+  // settings, left Alt by default) over a word to look it up; the popup
+  // then stays open until clicked away, not just while the key is held.
   // popup is what <DefinitionPopup> renders; attach() wires the hover
   // listeners into the iframe's document each time it loads.
-  const [hoverOn, setHoverOn] = useHoverToggle()
-  const { popup, attach } = useJapaneseHover(iframeRef, { enabled: hoverOn })
+  const [definitionHotkey, setDefinitionHotkey] = useDefinitionHotkey()
+  const { popup, attach } = useJapaneseHover(iframeRef, { hotkey: definitionHotkey })
 
   useEffect(() => {
     // StrictMode runs this effect, then its cleanup, then the effect again
@@ -439,15 +441,11 @@ function Reader({ book, onBack }) {
   return (
     <div className="reader-page" ref={pageRef}>
       <TopBar>
-        <button className="topbar-btn" onClick={() => { reading.flush(); onBack() }}>
+        <button className="topbar-btn" onClick={() => onBack(reading.flush({ now: true }))}>
           Return to bookshelf
         </button>
         <button className="topbar-btn" onClick={handleToggleFullscreen}>
           {isFullscreen ? 'Exit fullscreen' : 'Fullscreen'}
-        </button>
-        {/* NEW: turn hover definitions on/off */}
-        <button className="topbar-btn" onClick={() => setHoverOn(!hoverOn)}>
-          Definitions: {hoverOn ? 'On' : 'Off'}
         </button>
         <button className="topbar-btn" onClick={() => { setIsBookmarksOpen(false); setIsSettingsOpen((open) => !open) }}>
           Settings
@@ -462,7 +460,7 @@ function Reader({ book, onBack }) {
       <div className="reading-progress" role="status">
         {Math.round((reading.state.position?.progress ?? 0) * 100)}% through {book.name}
       </div>
-      {reading.storageError && <p className="reading-storage-error" role="alert">{reading.storageError}</p>}
+      {reading.syncError && <p className="reading-storage-error" role="alert">{reading.syncError}</p>}
 
       <div className="reader-content">
         <style id="yomu-scrollbar-style" />
@@ -487,6 +485,8 @@ function Reader({ book, onBack }) {
             preferences={preferences}
             onChange={handlePreferencesChange}
             onClose={() => setIsSettingsOpen(false)}
+            definitionHotkey={definitionHotkey}
+            onDefinitionHotkeyChange={setDefinitionHotkey}
           />
         )}
 

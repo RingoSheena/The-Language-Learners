@@ -2,11 +2,15 @@ import cookieParser from 'cookie-parser'
 import cors from 'cors'
 import 'dotenv/config'
 import express from 'express'
+import { rateLimit } from 'express-rate-limit'
 import jwt from 'jsonwebtoken'
 import multer from 'multer'
 import { PrismaBetterSqlite3 } from '@prisma/adapter-better-sqlite3'
 import { PrismaClient } from './generated/prisma/client.ts'
 import { hashPassword, verifyPassword } from './auth.js'
+import { cardReviewStats, summarizePractice } from './flashcardStats.js'
+import { isValidTimeZone } from '../../shared/practiceDay.js'
+import { GRADES, reviewCard } from '../../shared/srs.js'
 
 const app = express()
 const port = process.env.PORT || 3001
@@ -61,7 +65,12 @@ app.get('/', (req, res) => {
       '/api/me',
       '/api/books',
       '/api/books/:id',
+      '/api/books/:id/reading',
+      '/api/books/:id/position',
+      '/api/books/:id/bookmarks',
+      '/api/books/:id/bookmarks/:bookmarkId',
       '/api/flashcards',
+      '/api/flashcards/stats',
       '/api/flashcards/:id',
       '/api/flashcards/:id/review',
     ],
@@ -113,11 +122,24 @@ function requireUser(req, res, next) {
   next()
 }
 
+// Caps login and registration attempts per IP so passwords can't be
+// guessed by brute force. Successful logins don't count toward the limit.
+const authLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  limit: 10,
+  skipSuccessfulRequests: true,
+  standardHeaders: 'draft-8',
+  legacyHeaders: false,
+  message: {
+    error: 'Too many attempts. Please wait 15 minutes and try again.',
+  },
+})
+
 app.get('/api/health', (req, res) => {
   res.json({ status: 'ok' })
 })
 
-app.post('/api/register', async (req, res) => {
+app.post('/api/register', authLimiter, async (req, res) => {
   try {
     const email = String(req.body.email ?? '').trim().toLowerCase()
     const password = String(req.body.password ?? '')
@@ -155,7 +177,7 @@ app.post('/api/register', async (req, res) => {
   }
 })
 
-app.post('/api/login', async (req, res) => {
+app.post('/api/login', authLimiter, async (req, res) => {
   try {
     const email = String(req.body.email ?? '').trim().toLowerCase()
     const password = String(req.body.password ?? '')
@@ -206,6 +228,7 @@ const BOOK_FIELDS = {
   coverImage: true,
   createdAt: true,
   lastOpenedAt: true,
+  readingPosition: true,
 }
 
 // Save an EPUB to the logged-in user's account
@@ -377,6 +400,136 @@ app.delete('/api/books/:id', requireUser, async (req, res) => {
   }
 })
 
+// A reading position is captured by the client (client/src/readingState.js)
+// and only ever read back by it, so the server just checks it's a small
+// object with a sane progress fraction.
+const MAX_POSITION_BYTES = 4 * 1024
+
+function readPosition(position) {
+  const valid =
+    position !== null &&
+    typeof position === 'object' &&
+    !Array.isArray(position) &&
+    Number.isFinite(position.progress) &&
+    position.progress >= 0 &&
+    position.progress <= 1 &&
+    JSON.stringify(position).length <= MAX_POSITION_BYTES
+
+  return valid ? position : null
+}
+
+const BOOKMARK_FIELDS = {
+  id: true,
+  label: true,
+  position: true,
+  createdAt: true,
+}
+
+async function findOwnedBookId(req) {
+  const book = await prisma.book.findFirst({
+    where: { id: req.params.id, userId: req.user.id },
+    select: { id: true },
+  })
+
+  return book?.id ?? null
+}
+
+// Where the reader left off in a book, and its bookmarks
+app.get('/api/books/:id/reading', requireUser, async (req, res) => {
+  try {
+    const book = await prisma.book.findFirst({
+      where: { id: req.params.id, userId: req.user.id },
+      select: {
+        readingPosition: true,
+        bookmarks: { select: BOOKMARK_FIELDS, orderBy: { createdAt: 'asc' } },
+      },
+    })
+
+    if (!book) {
+      return res.status(404).json({ error: 'Book not found.' })
+    }
+
+    res.json({ position: book.readingPosition, bookmarks: book.bookmarks })
+  } catch (error) {
+    console.error('Unable to load reading state:', error)
+    res.status(500).json({ error: 'Your reading progress could not be loaded.' })
+  }
+})
+
+// Save where the reader is in a book
+app.put('/api/books/:id/position', requireUser, async (req, res) => {
+  try {
+    const position = readPosition(req.body?.position)
+
+    if (!position) {
+      return res.status(400).json({ error: 'That reading position is not valid.' })
+    }
+
+    const { count } = await prisma.book.updateMany({
+      where: { id: req.params.id, userId: req.user.id },
+      data: { readingPosition: position },
+    })
+
+    if (count === 0) {
+      return res.status(404).json({ error: 'Book not found.' })
+    }
+
+    res.status(204).end()
+  } catch (error) {
+    console.error('Unable to save reading position:', error)
+    res.status(500).json({ error: 'Your reading progress could not be saved.' })
+  }
+})
+
+// Bookmark a passage in a book
+app.post('/api/books/:id/bookmarks', requireUser, async (req, res) => {
+  try {
+    const position = readPosition(req.body?.position)
+    const label = String(req.body?.label ?? '').trim().slice(0, 200)
+
+    if (!position || !label) {
+      return res.status(400).json({ error: 'A bookmark needs a label and a position.' })
+    }
+
+    const bookId = await findOwnedBookId(req)
+
+    if (!bookId) {
+      return res.status(404).json({ error: 'Book not found.' })
+    }
+
+    const bookmark = await prisma.bookmark.create({
+      data: { label, position, bookId },
+      select: BOOKMARK_FIELDS,
+    })
+
+    res.status(201).json(bookmark)
+  } catch (error) {
+    console.error('Unable to save bookmark:', error)
+    res.status(500).json({ error: 'The bookmark could not be saved.' })
+  }
+})
+
+// Remove a bookmark
+app.delete('/api/books/:id/bookmarks/:bookmarkId', requireUser, async (req, res) => {
+  try {
+    const { count } = await prisma.bookmark.deleteMany({
+      where: {
+        id: req.params.bookmarkId,
+        book: { id: req.params.id, userId: req.user.id },
+      },
+    })
+
+    if (count === 0) {
+      return res.status(404).json({ error: 'Bookmark not found.' })
+    }
+
+    res.status(204).end()
+  } catch (error) {
+    console.error('Unable to delete bookmark:', error)
+    res.status(500).json({ error: 'The bookmark could not be deleted.' })
+  }
+})
+
 const FLASHCARD_FIELDS = {
   id: true,
   japanese: true,
@@ -410,16 +563,71 @@ function readFlashcardFields(body = {}) {
 // Get the logged-in user's flashcards
 app.get('/api/flashcards', requireUser, async (req, res) => {
   try {
-    const flashcards = await prisma.flashcard.findMany({
-      where: { userId: req.user.id },
-      select: FLASHCARD_FIELDS,
-      orderBy: { createdAt: 'desc' },
-    })
+    const reviewTotals = (where) =>
+      prisma.reviewLog.groupBy({
+        by: ['cardId'],
+        where: { userId: req.user.id, cardId: { not: null }, ...where },
+        _count: true,
+        _avg: { durationMs: true },
+      })
 
-    res.json(flashcards)
+    const [flashcards, all, passed] = await Promise.all([
+      prisma.flashcard.findMany({
+        where: { userId: req.user.id },
+        select: FLASHCARD_FIELDS,
+        orderBy: { createdAt: 'desc' },
+      }),
+      reviewTotals({}),
+      reviewTotals({ grade: { not: 'fail' } }),
+    ])
+
+    const byCard = (groups) => new Map(groups.map((group) => [group.cardId, group]))
+    const allByCard = byCard(all)
+    const passedByCard = byCard(passed)
+
+    res.json(
+      flashcards.map((card) => ({
+        ...card,
+        stats: cardReviewStats(card, allByCard.get(card.id), passedByCard.get(card.id)),
+      }))
+    )
   } catch (error) {
     console.error('Unable to load flashcards:', error)
     res.status(500).json({ error: 'Your flashcards could not be loaded.' })
+  }
+})
+
+// Practice stats for the logged-in user: today, the past week, streak,
+// retention, cards due soon, and a year of daily review counts. Days are the
+// learner's local days (ending at 4am, see shared/practiceDay.js), so the
+// client sends its time zone as ?timeZone=<IANA name>.
+//
+// Loads every review and buckets them in JS, since the day boundaries depend
+// on the time zone. That's quick for years of daily practice; if accounts
+// get far bigger, cache per-day counts instead.
+app.get('/api/flashcards/stats', requireUser, async (req, res) => {
+  try {
+    const { timeZone } = req.query
+
+    if (!isValidTimeZone(timeZone)) {
+      return res.status(400).json({ error: 'A valid timeZone is required.' })
+    }
+
+    const [logs, cards] = await Promise.all([
+      prisma.reviewLog.findMany({
+        where: { userId: req.user.id },
+        select: { reviewedAt: true, durationMs: true, grade: true, intervalDays: true },
+      }),
+      prisma.flashcard.findMany({
+        where: { userId: req.user.id },
+        select: { dueAt: true, intervalDays: true, lastReviewedAt: true },
+      }),
+    ])
+
+    res.json(summarizePractice({ logs, cards, timeZone }))
+  } catch (error) {
+    console.error('Unable to load flashcard stats:', error)
+    res.status(500).json({ error: 'Your practice stats could not be loaded.' })
   }
 })
 
@@ -497,49 +705,59 @@ app.patch('/api/flashcards/:id', requireUser, async (req, res) => {
   }
 })
 
-// Pulls a validated review schedule out of a request body, or returns null
-// if any field is missing or out of range. The schedule itself is computed
-// by the client (client/src/srs.js); this only makes sure it's sane.
-function readReviewSchedule(body = {}) {
-  const dueAt = new Date(body.dueAt)
-  const lastReviewedAt = new Date(body.lastReviewedAt)
-  const { intervalDays, ease, streak, lapses } = body
+// Answer times longer than this are counted as this long, so a card left
+// on screen while the learner walks away doesn't inflate their time.
+const MAX_REVIEW_DURATION_MS = 60 * 1000
 
-  const valid =
-    !Number.isNaN(dueAt.getTime()) &&
-    !Number.isNaN(lastReviewedAt.getTime()) &&
-    Number.isFinite(intervalDays) && intervalDays >= 0 &&
-    Number.isFinite(ease) && ease >= 1.3 && ease <= 10 &&
-    Number.isInteger(streak) && streak >= 0 &&
-    Number.isInteger(lapses) && lapses >= 0
-
-  return valid
-    ? { dueAt, intervalDays, ease, streak, lapses, lastReviewedAt }
-    : null
+function readReviewDuration(durationMs) {
+  return Number.isFinite(durationMs)
+    ? Math.round(Math.min(Math.max(durationMs, 0), MAX_REVIEW_DURATION_MS))
+    : 0
 }
 
-// Save a card's new review schedule after the user grades it
+// Grade a card. The client sends the grade and how long it took to answer;
+// the new schedule is computed here from the saved card, with the same
+// shared/srs.js the client uses for its interval previews. Each review is
+// also logged for practice stats.
 app.post('/api/flashcards/:id/review', requireUser, async (req, res) => {
   try {
-    const schedule = readReviewSchedule(req.body)
+    const { grade } = req.body ?? {}
+    const durationMs = readReviewDuration(req.body?.durationMs)
 
-    if (!schedule) {
+    if (!GRADES.includes(grade)) {
       return res.status(400).json({ error: 'That review is not valid.' })
     }
 
-    const { count } = await prisma.flashcard.updateMany({
+    const card = await prisma.flashcard.findFirst({
       where: { id: req.params.id, userId: req.user.id },
-      data: schedule,
+      select: FLASHCARD_FIELDS,
     })
 
-    if (count === 0) {
+    if (!card) {
       return res.status(404).json({ error: 'Flashcard not found.' })
     }
 
-    const flashcard = await prisma.flashcard.findUnique({
-      where: { id: req.params.id },
-      select: FLASHCARD_FIELDS,
-    })
+    const now = new Date()
+    const schedule = reviewCard(card, grade, now)
+
+    const [flashcard] = await prisma.$transaction([
+      prisma.flashcard.update({
+        where: { id: card.id },
+        data: schedule,
+        select: FLASHCARD_FIELDS,
+      }),
+      prisma.reviewLog.create({
+        data: {
+          grade,
+          reviewedAt: now,
+          durationMs,
+          intervalDays: card.intervalDays,
+          newIntervalDays: schedule.intervalDays,
+          cardId: card.id,
+          userId: req.user.id,
+        },
+      }),
+    ])
 
     res.json(flashcard)
   } catch (error) {
