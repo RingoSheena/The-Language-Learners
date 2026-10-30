@@ -5,6 +5,32 @@ import ePub from 'epubjs'
 // without relying on matching message text.
 class EpubValidationError extends Error {}
 
+export const MAX_EPUB_SIZE_BYTES = 25 * 1024 * 1024
+
+// Check metadata before loading the entire file into memory. Multer enforces
+// the same size limit on the server for direct API requests.
+export function validateEpubFile(file) {
+  if (!file) {
+    throw new EpubValidationError('Please choose an EPUB file.')
+  }
+
+  const isEpub =
+    file.name?.toLowerCase().endsWith('.epub') ||
+    file.type === 'application/epub+zip'
+
+  if (!isEpub) {
+    throw new EpubValidationError('Please upload a valid .epub file.')
+  }
+
+  if (file.size === 0) {
+    throw new EpubValidationError('The selected file is empty. Please choose another EPUB file.')
+  }
+
+  if (file.size > MAX_EPUB_SIZE_BYTES) {
+    throw new EpubValidationError('This EPUB is too large. Please choose a file smaller than 25 MB.')
+  }
+}
+
 // Validates an EPUB before it is added to the learner's library.
 export async function validateEpub(data) {
   if (
