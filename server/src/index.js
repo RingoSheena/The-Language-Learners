@@ -8,6 +8,7 @@ import multer from 'multer'
 import { PrismaBetterSqlite3 } from '@prisma/adapter-better-sqlite3'
 import { PrismaClient } from './generated/prisma/client.ts'
 import { hashPassword, verifyPassword } from './auth.js'
+import { getEpubUploadProblem, MAX_EPUB_SIZE_BYTES } from './bookUpload.js'
 import { cardReviewStats, summarizePractice } from './flashcardStats.js'
 import { isValidTimeZone } from '../../shared/practiceDay.js'
 import { GRADES, reviewCard } from '../../shared/srs.js'
@@ -38,11 +39,29 @@ const upload = multer({
   // Japanese titles like 猫.epub.
   defParamCharset: 'utf8',
   limits: {
-    fileSize: 25 * 1024 * 1024,
+    fileSize: MAX_EPUB_SIZE_BYTES,
     // The cover image arrives as a base64 data URL text field
     fieldSize: 10 * 1024 * 1024,
   },
 })
+
+// Translate Multer's upload errors into JSON the bookshelf can display.
+function receiveEpubUpload(req, res, next) {
+  upload.single('book')(req, res, (error) => {
+    if (!error) return next()
+
+    if (error instanceof multer.MulterError) {
+      const tooLarge = error.code === 'LIMIT_FILE_SIZE'
+      return res.status(tooLarge ? 413 : 400).json({
+        error: tooLarge
+          ? 'This EPUB is too large. Please choose a file smaller than 25 MB.'
+          : 'Unable to process this EPUB upload. Please try again.',
+      })
+    }
+
+    next(error)
+  })
+}
 
 app.use(
   cors({
@@ -236,23 +255,12 @@ const BOOK_FIELDS = {
 app.post(
   '/api/books',
   requireUser,
-  upload.single('book'),
+  receiveEpubUpload,
   async (req, res) => {
     try {
-      if (!req.file) {
-        return res.status(400).json({
-          error: 'Please select an EPUB file.',
-        })
-      }
-
-      const isEpub =
-        req.file.originalname.toLowerCase().endsWith('.epub') ||
-        req.file.mimetype === 'application/epub+zip'
-
-      if (!isEpub) {
-        return res.status(400).json({
-          error: 'Only EPUB files can be uploaded.',
-        })
+      const problem = getEpubUploadProblem(req.file)
+      if (problem) {
+        return res.status(problem.status).json({ error: problem.error })
       }
 
       const title =
