@@ -1,5 +1,6 @@
 // src/lib/dictionary.js
-// Loads dictionary data (JMdict + optional JPDB frequency) and answers lookups. Falls back to a small built-in starter list.
+// Answers lookups from JMdict on the server, plus an optional JPDB frequency list. Falls back to a small built-in
+// starter list when the server can't be reached.
 const BUILTIN_TXT = `は|は (wa)|topic marker particle
 が|が|subject marker particle
 を|を (o)|object marker particle
@@ -124,15 +125,14 @@ const BUILTIN_TXT = `は|は (wa)|topic marker particle
 const BUILTIN = new Map();
 BUILTIN_TXT.split("\n").forEach(l => { const [w, r, d] = l.split("|"); if (d) BUILTIN.set(w, [{ r, gloss: [d] }]); });
 
+
 const BASE = import.meta.env?.BASE_URL ?? "/";
 const SOURCES = [                       // files live in public/dict/
-  // jmdict-simplified "common" build. Unzip it and rename the .json inside to exactly this name.
-  { url: BASE + "dict/jmdict-eng-common.json", kind: "defs" },
   // optional JPDB frequency list (Yomitan format). Used only to rank ambiguous matches.
   { url: BASE + "dict/term_meta_bank_1.json", kind: "freq", optional: true },
 ];
 
-let DICT = { freq: new Map(), defs: new Map() };   // term -> [{r,v,disp}] / term -> [{r,gloss[]}]
+let DICT = { freq: new Map(), defs: new Map() };   // term -> [{r,v,disp}] / term -> [{r,gloss[]}] (dictionary files added locally)
 let ready = null;
 
 function gtext(g) {                      // Yomitan glossary items can be structured-content objects
@@ -143,21 +143,6 @@ function gtext(g) {                      // Yomitan glossary items can be struct
 }
 
 export function ingest(arr) {
-  if (arr && Array.isArray(arr.words)) {                         // jmdict-simplified format
-    for (const w of arr.words) {
-      const gloss = (w.sense || []).map(x => x.gloss.map(g => g.text).join(", ")).filter(Boolean);
-      const entry = {                                            // one object, shared by every key below
-        r: w.kana?.[0]?.text ?? null,
-        gloss,
-        c: (w.kanji?.[0]?.common || w.kana?.[0]?.common) ? 0 : 1,   // common words sort first
-      };
-      // index kanji AND kana spellings, so text written in kana (おいしい, かわいい...) is found too
-      const keys = new Set([...(w.kanji || []), ...(w.kana || [])].map(k => k.text));
-      for (const k of keys) { let a = DICT.defs.get(k); if (!a) DICT.defs.set(k, a = []); a.push(entry); }
-    }
-    for (const a of DICT.defs.values()) if (a.length > 1) a.sort((x, y) => (x.c ?? 1) - (y.c ?? 1));
-    return;
-  }
   if (!Array.isArray(arr) || !arr.length || !Array.isArray(arr[0])) return;
   if (arr[0][1] === "freq") {                                    // Yomitan term_meta_bank (JPDB)
     for (const e of arr) {
@@ -176,12 +161,14 @@ export function ingest(arr) {
   }
 }
 
-// Cache the parsed dictionary in IndexedDB so the big files are only downloaded/parsed once.
-// Change the name (v2 -> v3 ...) whenever ingest() or the data files change, so a stale cache is ignored.
-const idb = () => new Promise((res, rej) => { const r = indexedDB.open("jpdict-v2", 1);
+// Cache the parsed files in IndexedDB so the big ones are only downloaded/parsed once.
+// Change the name (v3 -> v4 ...) whenever ingest() or the data files change, so a stale cache is ignored.
+// v2 held JMdict's common words, which now come from the server (see fetchEntries).
+const idb = () => new Promise((res, rej) => { const r = indexedDB.open("jpdict-v3", 1);
   r.onupgradeneeded = () => r.result.createObjectStore("kv"); r.onsuccess = () => res(r.result); r.onerror = () => rej(r.error); });
 async function saveCache() { try { (await idb()).transaction("kv", "readwrite").objectStore("kv").put(DICT, "dict"); } catch {} }
 function loadCache() {
+  try { indexedDB.deleteDatabase("jpdict-v2"); } catch {}
   return new Promise(res => { idb().then(db => { const q = db.transaction("kv").objectStore("kv").get("dict");
     q.onsuccess = () => { if (q.result) DICT = q.result; res(); }; q.onerror = () => res(); }).catch(() => res()); });
 }
@@ -208,55 +195,101 @@ export function initDictionary() {
 
 // Optional: let users add a dictionary file manually
 export async function loadDictionaryFile(file) { ingest(JSON.parse(await file.text())); saveCache(); }
-export const dictionaryStats = () => ({ defs: DICT.defs.size, freq: DICT.freq.size, builtin: BUILTIN.size });
+export const dictionaryStats = () => ({ fetched: found.size, defs: DICT.defs.size, freq: DICT.freq.size, builtin: BUILTIN.size });
+
+// ---------------------------------------------------------------------------
+// JMdict lives on the server (server/src/dictionary.js). One hover tries many spellings, so search() runs
+// once to note every spelling it needs, they're fetched in one request, and search() runs again with them.
+// ---------------------------------------------------------------------------
+const found = new Map();                          // spelling -> JMdict entries [{r,gloss[],pos[],c}] ([] = not in it)
+const MAX_FOUND = 50000;                          // forget old lookups past this, so a long session stays small
+const LOOKUP_BATCH = 2000;                        // the server's limit per request
+let missing = null;                               // spellings search() needed that aren't in `found`, while it runs
+
+async function fetchEntries(terms) {
+  if (found.size + terms.length > MAX_FOUND) found.clear();
+  try {
+    for (let i = 0; i < terms.length; i += LOOKUP_BATCH) {
+      const batch = terms.slice(i, i + LOOKUP_BATCH);
+      const r = await fetch("/api/dictionary/lookup", {
+        method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ terms: batch }) });
+      if (!r.ok) { console.warn(`[dictionary] lookup -> HTTP ${r.status}`, (await r.json().catch(() => ({}))).error ?? ""); return false; }
+      const { entries } = await r.json();
+      for (const t of batch) found.set(t, entries[t] || []);
+    }
+    return true;
+  } catch (e) {
+    console.warn("[dictionary] lookup failed", e);
+    return false;
+  }
+}
 
 // ---------------------------------------------------------------------------
 // Deinflection: turn a conjugated form back into dictionary-form candidates.
 // 食べました -> 食べる, 洗って -> 洗う, 楽しかった -> 楽しい, 青くて -> 青い ...
-// Every candidate is checked against the dictionary, so generating extra wrong ones is harmless.
+// Each candidate says what part of speech it must be (its "kind"), and only entries with that part of speech
+// count, so generating extra wrong candidates is harmless: 読みます -> 読み is only a verb stem, never the
+// noun 読み, and 書った -> 書く is no match because 書く doesn't conjugate that way.
 // ---------------------------------------------------------------------------
 const I2U = { い: "う", き: "く", ぎ: "ぐ", し: "す", ち: "つ", に: "ぬ", び: "ぶ", み: "む", り: "る" };   // 読み -> 読む
 const A2U = { わ: "う", か: "く", が: "ぐ", さ: "す", た: "つ", な: "ぬ", ば: "ぶ", ま: "む", ら: "る" };   // 読ま(ない) -> 読む
+const E2U = { え: "う", け: "く", げ: "ぐ", せ: "す", て: "つ", ね: "ぬ", べ: "ぶ", め: "む", れ: "る" };   // 書け(ば) -> 書く
 
-// [ending, replacement]; "" means "what is left is a verb stem" (stemForms handles it)
+// kind -> JMdict part-of-speech tags it allows (prefixes: "v5" is every godan verb, 行く's "v5k-s" included).
+// "any" allows every word; "stem" is a verb stem, never a word on its own (stemForms turns it into one).
+const KIND_POS = { v1: ["v1", "vk"], v5: ["v5"], "v5k-s": ["v5k-s"], vk: ["vk"], vs: ["vs"], "adj-i": ["adj-i"] };
+const usable = k => k === "any" || KIND_POS[k];
+const fits = (d, kinds) => kinds.has("any") || !d.pos                  // local/built-in entries have no pos
+  || d.pos.some(p => [...kinds].some(k => KIND_POS[k]?.some(x => p.startsWith(x))));
+
+// [ending, replacement, kind]
 const SUFFIX_RULES = [
-  ["ませんでした", ""], ["ましょう", ""], ["ました", ""], ["ません", ""], ["ます", ""],
-  ["なかった", ""], ["なくて", ""], ["ない", ""], ["たかった", ""], ["たくない", ""], ["たい", ""],
-  ["ながら", ""], ["たり", ""], ["だ", ""], ["よ", ""], ["ね", ""],
-  ["ていました", "て"], ["ています", "て"], ["ていた", "て"], ["ている", "て"],
-  ["でいました", "で"], ["でいます", "で"], ["でいた", "で"], ["でいる", "で"],
-  ["すれば", "する"], ["れば", "る"], ["ければ", "い"],
-  ["くなかった", "い"], ["くない", "い"], ["かった", "い"], ["くて", "い"], ["かっ", "い"], ["く", "い"],
-  ["って", "う"], ["って", "つ"], ["って", "る"], ["った", "う"], ["った", "つ"], ["った", "る"],
-  ["んで", "ぬ"], ["んで", "ぶ"], ["んで", "む"], ["んだ", "ぬ"], ["んだ", "ぶ"], ["んだ", "む"],
-  ["いて", "く"], ["いた", "く"], ["いで", "ぐ"], ["いだ", "ぐ"],
-  ["して", "する"], ["した", "する"], ["して", "す"], ["した", "す"],
-  ["て", "る"], ["た", "る"],
+  ["ませんでした", "", "stem"], ["ましょう", "", "stem"], ["ました", "", "stem"], ["ません", "", "stem"], ["ます", "", "stem"],
+  ["なかった", "", "stem"], ["なくて", "", "stem"], ["ない", "", "stem"], ["たかった", "", "stem"], ["たくない", "", "stem"], ["たい", "", "stem"],
+  ["ながら", "", "stem"], ["たり", "", "stem"], ["だ", "", "any"], ["よ", "", "any"], ["ね", "", "any"],
+  ["ていました", "て", "stem"], ["ています", "て", "stem"], ["ていた", "て", "stem"], ["ている", "て", "stem"],
+  ["でいました", "で", "stem"], ["でいます", "で", "stem"], ["でいた", "で", "stem"], ["でいる", "で", "stem"],
+  ["すれば", "する", "vs"], ["れば", "る", "v1"],
+  ["ければ", "い", "adj-i"], ["くなかった", "い", "adj-i"], ["くない", "い", "adj-i"], ["かった", "い", "adj-i"],
+  ["くて", "い", "adj-i"], ["かっ", "い", "adj-i"], ["く", "い", "adj-i"],
+  // 行って, 行った: before う so 行く beats 行う, which is spelled the same and far less common
+  ["って", "く", "v5k-s"], ["った", "く", "v5k-s"],
+  ["って", "う", "v5"], ["って", "つ", "v5"], ["って", "る", "v5"], ["った", "う", "v5"], ["った", "つ", "v5"], ["った", "る", "v5"],
+  ["んで", "ぬ", "v5"], ["んで", "ぶ", "v5"], ["んで", "む", "v5"], ["んだ", "ぬ", "v5"], ["んだ", "ぶ", "v5"], ["んだ", "む", "v5"],
+  ["いて", "く", "v5"], ["いた", "く", "v5"], ["いで", "ぐ", "v5"], ["いだ", "ぐ", "v5"],
+  ["して", "する", "vs"], ["した", "する", "vs"], ["して", "す", "v5"], ["した", "す", "v5"],
+  ["て", "る", "v1"], ["た", "る", "v1"],
   // pieces the tokenizer splits off before て/た: 洗っ|て, 混ん|で, 書い|て
-  ["っ", "う"], ["っ", "つ"], ["っ", "る"], ["ん", "ぬ"], ["ん", "ぶ"], ["ん", "む"], ["い", "く"], ["い", "ぐ"],
+  ["っ", "う", "v5"], ["っ", "つ", "v5"], ["っ", "る", "v5"], ["っ", "く", "v5k-s"],
+  ["ん", "ぬ", "v5"], ["ん", "ぶ", "v5"], ["ん", "む", "v5"], ["い", "く", "v5"], ["い", "ぐ", "v5"],
 ];
 
-function deinflect(s) {
-  const out = [], seen = new Set();
-  const add = c => { if (c && !seen.has(c)) { seen.add(c); out.push(c); } };
+// candidate -> the kinds it may be
+export function deinflect(s) {
+  const out = new Map();
+  const add = (c, kind) => { if (!c) return; const kinds = out.get(c); if (kinds) kinds.add(kind); else out.set(c, new Set([kind])); };
   const stemForms = x => {                       // x might be a bare verb stem
     const l = x.slice(-1), head = x.slice(0, -1);
-    if (l === "し") add(head + "する");
-    if (I2U[l]) add(head + I2U[l]);
-    if (A2U[l]) add(head + A2U[l]);
-    add(x + "る");
-    if (x === "き" || x === "こ") add("くる");
+    if (l === "し") add(head + "する", "vs");
+    if (I2U[l]) add(head + I2U[l], "v5");
+    if (A2U[l]) add(head + A2U[l], "v5");
+    add(x + "る", "v1");
+    if (x === "き" || x === "こ") add("くる", "vk");
   };
-  add(s);
+  add(s, "any");
   let frontier = [s];
-  for (let depth = 0; depth < 3 && frontier.length && out.length < 300; depth++) {
+  for (let depth = 0; depth < 3 && frontier.length && out.size < 300; depth++) {
     const next = [];
     for (const x of frontier) {
-      const before = out.length;
+      const before = out.size;
+      // only the text itself and in-between stems conjugate further: 書った -> 書く (行く's rule) -> 書い -> 書く
+      // would otherwise turn a dictionary form back into a stem and out again as a verb it isn't
+      if (![...out.get(x)].some(k => k === "any" || k === "stem")) continue;
       stemForms(x);
-      for (const [from, to] of SUFFIX_RULES)
-        if (x.length > from.length && x.endsWith(from)) add(x.slice(0, -from.length) + to);
-      next.push(...out.slice(before));
+      if (x.endsWith("ば") && E2U[x.slice(-2, -1)]) add(x.slice(0, -2) + E2U[x.slice(-2, -1)], "v5");
+      for (const [from, to, kind] of SUFFIX_RULES)
+        if (x.length > from.length && x.endsWith(from)) add(x.slice(0, -from.length) + to, kind);
+      next.push(...[...out.keys()].slice(before));
     }
     frontier = next;
   }
@@ -281,18 +314,33 @@ const GRAMMAR = new Map(Object.entries({
 const PARTICLES = new Set(["は", "が", "を", "に", "で", "と", "も", "の", "へ", "や", "から", "まで", "より", "ね", "よ", "わ", "ぞ", "ぜ"]);
 const KANJI = /[㐀-鿿]/;
 const MAX_SPAN = 10;                              // characters
-const defsOf = w => DICT.defs.get(w) || BUILTIN.get(w) || [];
+const isParticle = d => Boolean(d.pos?.includes("prt"));
 const rank = w => Math.min(Infinity, ...(DICT.freq.get(w) || []).map(f => f.v));
 
-// Look up one string. Exact spelling wins; otherwise the best-ranked deinflected form.
-function lookupText(t, allowFreqOnly = false) {
-  const cands = deinflect(t);
-  const hits = cands.filter(w => defsOf(w).length);
+function defsOf(w, kinds) {
+  if (![...kinds].some(usable)) return [];
+  if (missing && !found.has(w)) missing.add(w);
+  const defs = found.get(w)?.length ? found.get(w) : DICT.defs.get(w) || BUILTIN.get(w) || [];
+  return defs.filter(d => fits(d, kinds));
+}
+
+// Look up one string. Exact spelling wins; otherwise the best-ranked deinflected form, common words first.
+// exactOnly skips deinflection, for text that can't be a conjugated word.
+function lookupText(t, allowFreqOnly = false, exactOnly = false) {
+  const cands = exactOnly ? new Map([[t, new Set(["any"])]]) : deinflect(t);
+  const hits = [];
+  for (const [w, kinds] of cands) { const defs = defsOf(w, kinds); if (defs.length) hits.push({ w, defs }); }
   if (hits.length) {
-    const w = defsOf(t).length ? t : hits.reduce((m, x) => (rank(x) < rank(m) ? x : m));
-    return { word: w, surface: t, freq: DICT.freq.get(w) || [], defs: defsOf(w) };
+    const score = h => [rank(h.w), h.defs[0].c ?? 1];
+    const best = hits[0].w === t ? hits[0] : hits.reduce((m, h) => {
+      const [hr, hc] = score(h), [mr, mc] = score(m);
+      return hr < mr || (hr === mr && hc < mc) ? h : m;
+    });
+    // は is also 歯 (tooth) and 葉 (leaf) in JMdict; a particle-shaped word is most likely the particle
+    const defs = PARTICLES.has(best.w) ? [...best.defs].sort((a, b) => isParticle(b) - isParticle(a)) : best.defs;
+    return { word: best.w, surface: t, freq: DICT.freq.get(best.w) || [], defs };
   }
-  if (allowFreqOnly) for (const w of cands) {
+  if (allowFreqOnly) for (const [w] of cands) {
     const freq = DICT.freq.get(w);
     if (freq?.length) return { word: w, surface: t, freq, defs: [] };
   }
@@ -307,6 +355,20 @@ function lookupText(t, allowFreqOnly = false) {
  */
 export async function lookupAround(pieces, k, c = 0) {   // c = index of the hovered character inside piece k
   if (ready) await ready;
+  let result;
+  for (let round = 0; ; round++) {
+    missing = new Set();
+    result = search(pieces, k, c);
+    const terms = [...missing];
+    missing = null;
+    // a longer match found with the new entries can need spellings of its own, hence a few rounds
+    if (!terms.length || round === 3 || !(await fetchEntries(terms))) break;   // server unreachable: keep what we have
+  }
+  if (!result.info) console.log("dictionary miss:", pieces[k].t);
+  return result;
+}
+
+function search(pieces, k, c) {
   const tok = pieces[k].t;
   let lo = k, hi = k;                             // only merge neighbours that are word-like (no punctuation / spaces)
   while (lo > 0 && pieces[lo - 1].w && k - (lo - 1) <= 7) lo--;
@@ -318,7 +380,8 @@ export async function lookupAround(pieces, k, c = 0) {   // c = index of the hov
     for (let j = hi; j >= k; j--) {
       const text = pieces.slice(i, j + 1).map(p => p.t).join("");
       if (text.length > MAX_SPAN || (best && text.length <= best.text.length)) continue;
-      const info = lookupText(text);
+      // a run starting with a particle is only a match as written (について): に|なって is に + なる, not 担う
+      const info = lookupText(text, false, j > i && PARTICLES.has(pieces[i].t));
       if (info) { best = { info, i, j, text }; break; }                 // longest end for this start
     }
   }
@@ -338,7 +401,6 @@ export async function lookupAround(pieces, k, c = 0) {   // c = index of the hov
   if (info) return { info, i: k, j: k, text: tok };
   const g = GRAMMAR.get(tok);
   if (g) return { info: { word: tok, surface: tok, freq: [], defs: [{ r: null, gloss: [g] }] }, i: k, j: k, text: tok };
-  console.log("dictionary miss:", tok);
   return { info: null, i: k, j: k, text: tok };
 }
 

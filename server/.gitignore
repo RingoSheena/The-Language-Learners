@@ -6,3 +6,7 @@ node_modules
 
 # Local SQLite database
 /dev.db
+
+# JMdict dictionary, built by npm run dictionary
+/dictionary.db
+/dictionary.db.building

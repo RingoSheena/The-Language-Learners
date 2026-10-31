@@ -9,6 +9,7 @@ import { PrismaBetterSqlite3 } from '@prisma/adapter-better-sqlite3'
 import { PrismaClient } from './generated/prisma/client.ts'
 import { hashPassword, verifyPassword } from './auth.js'
 import { cardReviewStats, summarizePractice } from './flashcardStats.js'
+import { lookupTerms } from './dictionary.js'
 import { isValidTimeZone } from '../../shared/practiceDay.js'
 import { GRADES, reviewCard } from '../../shared/srs.js'
 
@@ -820,6 +821,40 @@ app.delete('/api/flashcards/:id', requireUser, async (req, res) => {
   } catch (error) {
     console.error('Unable to delete flashcard:', error)
     res.status(500).json({ error: 'The flashcard could not be deleted.' })
+  }
+})
+
+// Dictionary entries for the spellings the reader's word lookup is
+// checking. One hover tries many spellings at once (every run of
+// neighboring words, and every way each could be conjugated), so they come
+// in one request instead of one each.
+const MAX_LOOKUP_TERMS = 2000
+const MAX_TERM_LENGTH = 20
+
+app.post('/api/dictionary/lookup', requireUser, (req, res) => {
+  const terms = req.body?.terms
+
+  if (!Array.isArray(terms) || terms.length > MAX_LOOKUP_TERMS) {
+    return res.status(400).json({ error: 'That lookup is not valid.' })
+  }
+
+  try {
+    const entries = lookupTerms([
+      ...new Set(
+        terms.filter((term) => typeof term === 'string' && term && term.length <= MAX_TERM_LENGTH)
+      ),
+    ])
+
+    if (!entries) {
+      return res.status(503).json({
+        error: 'The dictionary is not installed. Run npm run dictionary in server/.',
+      })
+    }
+
+    res.json({ entries })
+  } catch (error) {
+    console.error('Unable to look up words:', error)
+    res.status(500).json({ error: 'The dictionary lookup failed.' })
   }
 })
 

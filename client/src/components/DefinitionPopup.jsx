@@ -156,8 +156,7 @@ export default function DefinitionPopup({ popup }) {
             ))
           ) : (
             <div style={{ fontSize: 15 }}>
-              No definition found. Check that
-              public/dict/jmdict-eng-common.json exists and loaded.
+              No definition found.
             </div>
           )}
 
@@ -216,6 +215,30 @@ export default function DefinitionPopup({ popup }) {
           {saveError}
         </div>
       )}
+
+      {/* JMdict's license (CC BY-SA 4.0) asks for this wherever its
+          definitions are shown */}
+      <div style={{ marginTop: 8, fontSize: 11, color: '#888' }}>
+        Definitions from{' '}
+        <a
+          href="https://www.edrdg.org/wiki/index.php/JMdict-EDICT_Dictionary_Project"
+          target="_blank"
+          rel="noreferrer"
+          style={{ color: 'inherit' }}
+        >
+          JMdict
+        </a>{' '}
+        by the{' '}
+        <a
+          href="https://www.edrdg.org/edrdg/licence.html"
+          target="_blank"
+          rel="noreferrer"
+          style={{ color: 'inherit' }}
+        >
+          EDRDG
+        </a>
+        , CC BY-SA 4.0
+      </div>
     </div>
   )
 }

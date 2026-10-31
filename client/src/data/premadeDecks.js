@@ -23,8 +23,7 @@ const DECK_DESCRIPTIONS = {
 }
 
 // Each card is [word, reading, definition], written out here rather than
-// looked up at study time: the reader's dictionary only has common words, and
-// for anything else it matches part of the word instead (大浴場 came out as 大).
+// looked up at study time, so decks don't depend on the dictionary server.
 const WORDS = {
   'conversation-beginner': [
     ['こんにちは', 'こんにちは', 'hello, good day, good afternoon'],

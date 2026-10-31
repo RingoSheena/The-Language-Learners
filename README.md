@@ -18,6 +18,12 @@ Japanese Reading & Flashcard Suite
 - The **Flashcards** page shows your practice stats: streak (days in a row with at least one review), cards reviewed and time spent today, a 7-day daily average, retention (how often you pass cards you know well), cards due soon, a new/learning/young/mature breakdown, and a year-long heatmap of reviews per day. A day ends at 4am local time, and each answer counts for at most 60 seconds.
 - The **Browse** table shows each card's review count, pass rate, and average answer time. Cards failed 8 or more times are marked **Leech**; click it to reword the card.
 
+## Dictionary
+
+- Holding the definition hotkey over a word in the reader looks it up in [JMdict](https://www.edrdg.org/wiki/index.php/JMdict-EDICT_Dictionary_Project), the full English edition (over 200,000 entries). Conjugated words are traced back to their dictionary form, and a conjugation only matches words of the right part of speech.
+- The dictionary is stored on the server in `server/dictionary.db`, which isn't in git. `start-dev.sh` builds it the first time; run `npm run dictionary` in `server/` (with the server stopped) to update it to the latest JMdict release from [jmdict-simplified](https://github.com/scriptin/jmdict-simplified).
+- JMdict is the property of the [EDRDG](https://www.edrdg.org/edrdg/licence.html) and used under CC BY-SA 4.0. The definition popup credits it.
+
 ## Checks
 
 Run `npm test`, `npm run lint`, and `npm run build` from `client/` to check the frontend, and `npm test` from `server/` to check the backend and the spaced-repetition code in `shared/`.
