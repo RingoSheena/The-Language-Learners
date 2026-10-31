@@ -16,7 +16,7 @@ Japanese Reading & Flashcard Suite
 - Uploaded books and saved flashcards are stored in the server's database under your account, so each learner only sees their own and they follow you to other devices.
 - Flashcards are created from a word's definition popup in the reader. On the **Flashcards** page, **Practice** reviews the cards that are due, and **Browse** opens a table of every card where you can search, edit, or remove them. Search matches the Japanese word, its reading, or the English definition; hiragana and katakana find each other, and width and capitalization don't matter.
 - The **Flashcards** page shows your practice stats: streak (days in a row with at least one review), cards reviewed and time spent today, a 7-day daily average, retention (how often you pass cards you know well), cards due soon, a new/learning/young/mature breakdown, and a year-long heatmap of reviews per day. A day ends at 4am local time, and each answer counts for at most 60 seconds.
-- The **Browse** table shows each card's review count, pass rate, and average answer time. Cards failed 8 or more times are marked **Leech**; click it to reword the card.
+- The **Browse** table shows each card's word frequency (its JPDB rank, lower is more common), review count, pass rate, and average answer time. Cards failed 8 or more times are marked **Leech**; click it to reword the card.
 
 ## Dictionary
 

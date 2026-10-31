@@ -56,16 +56,38 @@ export function lookupTerms(terms) {
       ;(entries[row.term] ??= []).push(formatEntry(word, row.term))
     }
 
-    const ranks = dictionary
-      .prepare(`SELECT term, reading, rank, display FROM frequencies WHERE term IN (${placeholders})`)
-      .all(batch)
-    for (const row of ranks) {
-      ;(frequencies[row.term] ??= []).push({ r: row.reading, v: row.rank, disp: row.display })
-    }
+    Object.assign(frequencies, frequencyBatch(dictionary, batch))
   }
 
   for (const term of Object.keys(entries)) {
     entries[term] = sortByFrequency(entries[term], frequencies[term] ?? [])
   }
   return { entries, frequencies }
+}
+
+// Just the frequency ranks, as lookupTerms' frequencies. Returns null when
+// the dictionary hasn't been imported.
+export function lookupFrequencies(terms) {
+  const dictionary = openDictionary()
+  if (!dictionary) return null
+
+  const frequencies = {}
+  for (let start = 0; start < terms.length; start += QUERY_BATCH) {
+    Object.assign(frequencies, frequencyBatch(dictionary, terms.slice(start, start + QUERY_BATCH)))
+  }
+  return frequencies
+}
+
+function frequencyBatch(dictionary, terms) {
+  const frequencies = {}
+  const rows = dictionary
+    .prepare(
+      `SELECT term, reading, rank, display FROM frequencies
+       WHERE term IN (${terms.map(() => '?').join(', ')})`
+    )
+    .all(terms)
+  for (const row of rows) {
+    ;(frequencies[row.term] ??= []).push({ r: row.reading, v: row.rank, disp: row.display })
+  }
+  return frequencies
 }

@@ -9,7 +9,8 @@ import { PrismaBetterSqlite3 } from '@prisma/adapter-better-sqlite3'
 import { PrismaClient } from './generated/prisma/client.ts'
 import { hashPassword, verifyPassword } from './auth.js'
 import { cardReviewStats, summarizePractice } from './flashcardStats.js'
-import { lookupTerms } from './dictionary.js'
+import { lookupFrequencies, lookupTerms } from './dictionary.js'
+import { cardRank } from './frequency.js'
 import { isValidTimeZone } from '../../shared/practiceDay.js'
 import { GRADES, reviewCard } from '../../shared/srs.js'
 
@@ -547,6 +548,16 @@ const FLASHCARD_FIELDS = {
   lastReviewedAt: true,
 }
 
+// Adds each card's word frequency rank (see cardRank), for the Browse
+// page: null when the word isn't ranked or the dictionary isn't installed
+function withFrequency(cards) {
+  const frequencies = lookupFrequencies([...new Set(cards.map((card) => card.japanese))]) ?? {}
+  return cards.map((card) => ({
+    ...card,
+    frequency: cardRank(frequencies[card.japanese] ?? [], card.reading),
+  }))
+}
+
 // Pulls the editable flashcard fields out of a request body as trimmed
 // strings, leaving out anything the client didn't send so PATCH can
 // update one field without blanking the others.
@@ -588,7 +599,7 @@ app.get('/api/flashcards', requireUser, async (req, res) => {
     const passedByCard = byCard(passed)
 
     res.json(
-      flashcards.map((card) => ({
+      withFrequency(flashcards).map((card) => ({
         ...card,
         stats: cardReviewStats(card, allByCard.get(card.id), passedByCard.get(card.id)),
       }))
@@ -661,7 +672,7 @@ app.post('/api/flashcards', requireUser, async (req, res) => {
       select: FLASHCARD_FIELDS,
     })
 
-    res.status(201).json(flashcard)
+    res.status(201).json(withFrequency([flashcard])[0])
   } catch (error) {
     console.error('Unable to save flashcard:', error)
     res.status(500).json({ error: 'The flashcard could not be saved.' })
@@ -694,7 +705,7 @@ app.patch('/api/flashcards/:id', requireUser, async (req, res) => {
       select: FLASHCARD_FIELDS,
     })
 
-    res.json(flashcard)
+    res.json(withFrequency([flashcard])[0])
   } catch (error) {
     if (error.code === 'P2002') {
       return res.status(409).json({

@@ -41,6 +41,16 @@ export function entryRank(entry, frequencies) {
   return best
 }
 
+// A flashcard's rank: the best one for any of its readings (the popup
+// saves every reading, as "たわごと、 ざれごと"), or for the word whatever
+// its reading when none of them match. null when the word isn't ranked.
+export function cardRank(frequencies, reading = '') {
+  const readings = reading.split(/[、,;\s]+/).filter(Boolean)
+  const matching = frequencies.filter(({ r }) => !r || readings.includes(r))
+  const ranks = (matching.length > 0 ? matching : frequencies).map(({ v }) => v)
+  return ranks.length > 0 ? Math.min(...ranks) : null
+}
+
 // Most frequent first, so 来る shows くる before きたる. A kana spelling
 // usually has one rank for every word spelled that way, so among those,
 // words normally written in kana come first: よ the particle before 世 and

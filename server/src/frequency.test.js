@@ -1,6 +1,6 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { entryRank, frequencyRows, sortByFrequency } from './frequency.js'
+import { cardRank, entryRank, frequencyRows, sortByFrequency } from './frequency.js'
 
 test("a kanji spelling's kana-form rank is left out", () => {
   const bank = [
@@ -56,4 +56,16 @@ test('entries sort most frequent first, unranked ones after in their order', () 
     sortByFrequency(entries, KURU).map((entry) => entry.r),
     ['くる', 'きたる', 'らい', 'こ']
   )
+})
+
+test("a card's rank is the best one for any of its readings", () => {
+  assert.equal(cardRank(KURU, 'きたる'), 6967)
+  assert.equal(cardRank(KURU, 'くる、 きたる'), 34)
+  assert.equal(cardRank(KURU, ''), 34)
+})
+
+test("a card whose reading isn't ranked gets the word's best rank", () => {
+  assert.equal(cardRank(KURU, 'らい'), 34)
+  assert.equal(cardRank([{ r: null, v: 2, disp: '2㋕' }], 'は'), 2)
+  assert.equal(cardRank([], 'ねこ'), null)
 })

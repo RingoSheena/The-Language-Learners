@@ -976,6 +976,9 @@ export default function Flashcards({ onBack }) {
               <span>Japanese</span>
               <span>Reading</span>
               <span>Definition</span>
+              <span title="How common the word is: its rank in the JPDB frequency list, lower is more common">
+                Freq
+              </span>
               <span>Due</span>
               <span title="Times reviewed">Reviews</span>
               <span title="Share of reviews not failed">Pass</span>
@@ -1025,6 +1028,9 @@ export default function Flashcards({ onBack }) {
                         title={card.definition}
                       >
                         {card.definition.replace(/\n/g, ' ')}
+                      </span>
+                      <span className="flashcards-cell flashcards-cell-number">
+                        {card.frequency ?? '—'}
                       </span>
                       <span className="flashcards-cell flashcards-cell-due">
                         {formatDueAt(new Date(card.dueAt))}
