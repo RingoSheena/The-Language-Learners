@@ -1,15 +1,16 @@
 // Downloads the latest full English JMdict from jmdict-simplified
 // (https://github.com/scriptin/jmdict-simplified) and builds dictionary.db
 // from it, for the reader's word lookups. Frequency lists in Yomitan's
-// .zip format (JPDB's, say) placed in server/dictionaries/ are added too,
-// to rank matches; they aren't downloaded, since they aren't ours to
-// redistribute.
+// .zip format in server/dictionaries/ are added too, to rank matches; when
+// there are none, JPDB's is downloaded there first from its author's own
+// release. Neither is kept in git, since they aren't ours to redistribute.
 //
 //   npm run dictionary
 //
 // Safe to run again to update to a newer JMdict: the new dictionary is
 // built next to the old one and swapped in only once it's complete.
-import { existsSync, readdirSync, readFileSync, renameSync, rmSync } from 'node:fs'
+import { createHash } from 'node:crypto'
+import { existsSync, mkdirSync, readdirSync, readFileSync, renameSync, rmSync, writeFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { gunzipSync, inflateRawSync } from 'node:zlib'
 import Database from 'better-sqlite3'
@@ -21,6 +22,12 @@ const RELEASES_URL = 'https://api.github.com/repos/scriptin/jmdict-simplified/re
 // The full dictionary, not jmdict-eng-common-*
 const ASSET_NAME = /^jmdict-eng-\d[^/]*\.json\.tgz$/
 const FREQUENCY_DIR = fileURLToPath(new URL('../dictionaries/', import.meta.url))
+// JPDB's frequency list (https://github.com/MarvNC/jpdb-freq-list). Pinned
+// to one release and checked by its hash, so the file can't change under
+// us; it hasn't had a new release since 2022.
+const JPDB_URL =
+  'https://github.com/MarvNC/jpdb-freq-list/releases/download/2022-05-09/Freq.JPDB_2022-05-10T03_27_02.930Z.zip'
+const JPDB_SHA256 = '5bda39a9e3b443b02199435ea723aa0555c891d1ce2c92ea7680163b72b07a0e'
 
 async function download(url, accept) {
   const response = await fetch(url, { headers: { Accept: accept, 'User-Agent': 'yomu-dictionary-import' } })
@@ -69,6 +76,25 @@ function readZip(zip) {
   return files
 }
 
+const hasFrequencyList = () =>
+  existsSync(FREQUENCY_DIR) && readdirSync(FREQUENCY_DIR).some((name) => name.toLowerCase().endsWith('.zip'))
+
+// Without a frequency list lookups still work, just ranked by JMdict's
+// "common word" flag alone, so a failed download only warns
+async function downloadJpdb() {
+  console.log('Downloading the JPDB frequency list (6.4 MB)...')
+  try {
+    const zip = Buffer.from(await (await download(JPDB_URL, 'application/octet-stream')).arrayBuffer())
+    if (createHash('sha256').update(zip).digest('hex') !== JPDB_SHA256) {
+      throw new Error('the download did not match the expected file')
+    }
+    mkdirSync(FREQUENCY_DIR, { recursive: true })
+    writeFileSync(FREQUENCY_DIR + 'jpdb-frequency.zip', zip)
+  } catch (error) {
+    console.warn(`Could not download the JPDB frequency list (${error.message}). Continuing without it.`)
+  }
+}
+
 // [file name, title, rows] for each frequency list in server/dictionaries/
 function frequencyLists() {
   if (!existsSync(FREQUENCY_DIR)) return []
@@ -92,6 +118,7 @@ async function main() {
   console.log(`Downloading ${asset.name} (${(asset.size / 1e6).toFixed(1)} MB)...`)
   const tarball = gunzipSync(Buffer.from(await (await download(asset.browser_download_url, 'application/octet-stream')).arrayBuffer()))
   const jmdict = JSON.parse(firstJsonFile(tarball))
+  if (!hasFrequencyList()) await downloadJpdb()
   const lists = frequencyLists()
 
   console.log(`Building the dictionary from ${jmdict.words.length} entries...`)
