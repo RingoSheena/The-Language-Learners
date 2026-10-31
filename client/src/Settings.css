@@ -10,3 +10,47 @@
   flex: 1;
   padding: 1.5rem;
 }
+
+.settings-section {
+  max-width: 32rem;
+  text-align: left;
+}
+
+.settings-section h3 {
+  margin: 0 0 0.75rem;
+  font-size: 1rem;
+  color: var(--text-h);
+}
+
+.settings-field {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  color: var(--text-h);
+}
+
+.settings-field select {
+  padding: 0.35rem 0.5rem;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg);
+  color: var(--text-h);
+  font: inherit;
+}
+
+.settings-help {
+  margin: 0.5rem 0 0;
+  font-size: 0.875rem;
+  color: var(--text);
+}
+
+.settings-status {
+  margin: 0.5rem 0 0;
+  font-size: 0.875rem;
+  color: var(--text);
+}
+
+.settings-status-error {
+  color: #b3261e;
+}

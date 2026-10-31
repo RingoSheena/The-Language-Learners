@@ -15,6 +15,8 @@ model User {
   email        String   @unique
   passwordHash String
   createdAt    DateTime @default(now())
+  // Flashcard target recall, see shared/srs.js
+  desiredRetention Float @default(0.9)
 
   books        Book[]
   flashcards   Flashcard[]
@@ -29,11 +31,12 @@ model Flashcard {
   createdAt  DateTime @default(now())
   updatedAt  DateTime @updatedAt
 
-  // Spaced repetition schedule, see shared/srs.js
+  // Spaced repetition schedule (FSRS), see shared/srs.js. Stability and
+  // difficulty are null until the card's first review.
   dueAt          DateTime  @default(now())
   intervalDays   Float     @default(0)
-  ease           Float     @default(2.5)
-  streak         Int       @default(0)
+  stability      Float?
+  difficulty     Float?
   lapses         Int       @default(0)
   lastReviewedAt DateTime?
 
