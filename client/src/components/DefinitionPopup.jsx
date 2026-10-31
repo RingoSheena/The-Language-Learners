@@ -141,6 +141,35 @@ export default function DefinitionPopup({ popup }) {
             {readings.join('、 ') || '(no reading data)'}
           </div>
 
+          {/* A Yomitan-style tag. The list marks a rank for the word
+              written in kana with ㋕ and a word missing from its corpus
+              with ❌; the tooltip spells those out. */}
+          {best && (
+            <span
+              title={[
+                `Frequency rank ${best.v}`,
+                String(best.disp ?? '').includes('㋕') && 'written in kana',
+                String(best.disp ?? '').includes('❌') && 'not in the corpus',
+              ]
+                .filter(Boolean)
+                .join(', ')}
+              style={{
+                display: 'inline-block',
+                marginBottom: 6,
+                padding: '1px 6px',
+                border: '1px solid #c9c9c9',
+                borderRadius: 4,
+                background: '#f2f2f2',
+                color: '#333',
+                fontSize: 12,
+                lineHeight: 1.4,
+                fontVariantNumeric: 'tabular-nums',
+              }}
+            >
+              {best.v}
+            </span>
+          )}
+
           {defs.length > 0 ? (
             defs.slice(0, 4).map((d, i) => (
               <div
@@ -160,23 +189,6 @@ export default function DefinitionPopup({ popup }) {
             </div>
           )}
 
-          {best && (
-            <div
-              style={{
-                fontSize: 12,
-                color: '#888',
-                marginTop: 6,
-              }}
-            >
-              Frequency rank #{best.v}
-              {String(best.disp ?? '').includes('❌')
-                ? ' (not in corpus)'
-                : ''}
-              {String(best.disp ?? '').includes('㋕')
-                ? ' (kana form)'
-                : ''}
-            </div>
-          )}
         </>
       ) : (
         <div style={{ marginTop: 4 }}>
