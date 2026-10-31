@@ -125,50 +125,54 @@ export default function DefinitionPopup({ popup }) {
       role="tooltip"
       style={{ ...box, ...pos }}
     >
-      <div style={{ fontSize: 24, fontWeight: 600 }}>
-        {japanese}
+      <div
+        style={{
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'flex-start',
+          gap: 12,
+        }}
+      >
+        <div style={{ fontSize: 24, fontWeight: 600 }}>
+          {japanese}
+        </div>
+
+        {/* A Yomitan-style tag. The list marks a rank for the word
+            written in kana with ㋕ and a word missing from its corpus
+            with ❌; the tooltip spells those out. */}
+        {best && (
+          <span
+            title={[
+              `Frequency rank ${best.v}`,
+              String(best.disp ?? '').includes('㋕') && 'written in kana',
+              String(best.disp ?? '').includes('❌') && 'not in the corpus',
+            ]
+              .filter(Boolean)
+              .join(', ')}
+            style={{
+              display: 'inline-block',
+              flexShrink: 0,
+              marginTop: 4,
+              padding: '1px 6px',
+              border: '1px solid #c9c9c9',
+              borderRadius: 4,
+              background: '#f2f2f2',
+              color: '#333',
+              fontSize: 12,
+              lineHeight: 1.4,
+              fontVariantNumeric: 'tabular-nums',
+            }}
+          >
+            {best.v}
+          </span>
+        )}
       </div>
 
       {info ? (
         <>
-          {info.surface !== info.word && (
-            <div style={{ fontSize: 12, color: '#888' }}>
-              as written: {info.surface}
-            </div>
-          )}
-
           <div style={{ color: '#666', margin: '2px 0 6px' }}>
             {readings.join('、 ') || '(no reading data)'}
           </div>
-
-          {/* A Yomitan-style tag. The list marks a rank for the word
-              written in kana with ㋕ and a word missing from its corpus
-              with ❌; the tooltip spells those out. */}
-          {best && (
-            <span
-              title={[
-                `Frequency rank ${best.v}`,
-                String(best.disp ?? '').includes('㋕') && 'written in kana',
-                String(best.disp ?? '').includes('❌') && 'not in the corpus',
-              ]
-                .filter(Boolean)
-                .join(', ')}
-              style={{
-                display: 'inline-block',
-                marginBottom: 6,
-                padding: '1px 6px',
-                border: '1px solid #c9c9c9',
-                borderRadius: 4,
-                background: '#f2f2f2',
-                color: '#333',
-                fontSize: 12,
-                lineHeight: 1.4,
-                fontVariantNumeric: 'tabular-nums',
-              }}
-            >
-              {best.v}
-            </span>
-          )}
 
           {defs.length > 0 ? (
             defs.slice(0, 4).map((d, i) => (
