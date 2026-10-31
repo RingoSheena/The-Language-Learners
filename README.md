@@ -22,6 +22,7 @@ Japanese Reading & Flashcard Suite
 
 - Holding the definition hotkey over a word in the reader looks it up in [JMdict](https://www.edrdg.org/wiki/index.php/JMdict-EDICT_Dictionary_Project), the full English edition (over 200,000 entries). Conjugated words are traced back to their dictionary form, and a conjugation only matches words of the right part of speech.
 - The dictionary is stored on the server in `server/dictionary.db`, which isn't in git. `start-dev.sh` builds it the first time; run `npm run dictionary` in `server/` (with the server stopped) to update it to the latest JMdict release from [jmdict-simplified](https://github.com/scriptin/jmdict-simplified).
+- When a conjugated word fits more than one dictionary word, or a word has several readings, the most frequent one comes first. Frequencies come from Yomitan-format frequency lists (the [JPDB](https://jpdb.io) list is recommended) placed as `.zip` files in `server/dictionaries/` before running `npm run dictionary`. That folder isn't in git, since the lists aren't ours to share; without one, lookups fall back to JMdict's "common word" flag.
 - JMdict is the property of the [EDRDG](https://www.edrdg.org/edrdg/licence.html) and used under CC BY-SA 4.0. The definition popup credits it.
 
 ## Checks

@@ -16,6 +16,8 @@ export function compactWord(word) {
         appliesToKanji: sense.appliesToKanji,
         appliesToKana: sense.appliesToKana,
         gloss: sense.gloss.map((gloss) => gloss.text),
+        // "usually written using kana alone"
+        ...(sense.misc.includes('uk') && { uk: true }),
       }
     }),
   }
@@ -40,6 +42,8 @@ const appliesTo = (list, text) => list.includes('*') || list.includes(text)
 //   pos   -- parts of speech, used to check conjugations (see dictionary.js
 //            in the client)
 //   c     -- 0 when this spelling is a common one, so those sort first
+//   uk    -- for a kana spelling, whether the word is normally written that
+//            way (it has no kanji, or JMdict says it's usually kana)
 export function formatEntry(word, term) {
   const kanji = word.kanji.find((k) => k.text === term)
   const kana = word.kana.find((k) => k.text === term)
@@ -51,5 +55,6 @@ export function formatEntry(word, term) {
     gloss: senses.map((sense) => sense.gloss.join(', ')).filter(Boolean),
     pos: [...new Set(senses.flatMap((sense) => sense.partOfSpeech))],
     c: (kanji ?? kana)?.common ? 0 : 1,
+    uk: !kanji && (word.kanji.length === 0 || senses.some((sense) => sense.uk)),
   }
 }

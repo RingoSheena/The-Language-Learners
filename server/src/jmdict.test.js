@@ -30,6 +30,20 @@ const GIGEN = {
   ],
 }
 
+const YO = {
+  id: '2',
+  kanji: [],
+  kana: [{ common: true, text: 'よ', tags: [], appliesToKanji: ['*'] }],
+  sense: [sense(['hey'], { partOfSpeech: ['prt'] })],
+}
+
+const MATA = {
+  id: '3',
+  kanji: [{ common: true, text: '又', tags: [] }],
+  kana: [{ common: true, text: 'また', tags: [], appliesToKanji: ['*'] }],
+  sense: [sense(['again'], { partOfSpeech: ['adv'], misc: ['uk'] })],
+}
+
 test('a sense with no part of speech takes the one before it', () => {
   const word = compactWord(GIGEN)
   assert.deepEqual(word.sense.map((s) => s.partOfSpeech), [['n'], ['n']])
@@ -52,6 +66,7 @@ test('a kanji spelling shows the reading and senses that go with it', () => {
     gloss: ['nonsense, drivel'],
     pos: ['n'],
     c: 0,
+    uk: false,
   })
   assert.deepEqual(formatEntry(word, '戯れ言').gloss, ['nonsense, drivel', 'joke'])
   assert.equal(formatEntry(word, '戯れ言').c, 1)
@@ -64,6 +79,14 @@ test('a kana spelling is its own reading', () => {
     gloss: ['nonsense, drivel', 'joke'],
     pos: ['n'],
     c: 1,
+    uk: false,
   })
   assert.deepEqual(formatEntry(word, 'たわごと').gloss, ['nonsense, drivel'])
+})
+
+test('a kana spelling says whether the word is normally written in kana', () => {
+  assert.equal(formatEntry(compactWord(YO), 'よ').uk, true)
+  assert.equal(formatEntry(compactWord(MATA), 'また').uk, true)
+  assert.equal(formatEntry(compactWord(MATA), '又').uk, false)
+  assert.equal(formatEntry(compactWord(GIGEN), 'たわごと').uk, false)
 })

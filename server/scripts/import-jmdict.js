@@ -1,20 +1,26 @@
 // Downloads the latest full English JMdict from jmdict-simplified
 // (https://github.com/scriptin/jmdict-simplified) and builds dictionary.db
-// from it, for the reader's word lookups.
+// from it, for the reader's word lookups. Frequency lists in Yomitan's
+// .zip format (JPDB's, say) placed in server/dictionaries/ are added too,
+// to rank matches; they aren't downloaded, since they aren't ours to
+// redistribute.
 //
 //   npm run dictionary
 //
 // Safe to run again to update to a newer JMdict: the new dictionary is
 // built next to the old one and swapped in only once it's complete.
-import { renameSync, rmSync } from 'node:fs'
-import { gunzipSync } from 'node:zlib'
+import { existsSync, readdirSync, readFileSync, renameSync, rmSync } from 'node:fs'
+import { fileURLToPath } from 'node:url'
+import { gunzipSync, inflateRawSync } from 'node:zlib'
 import Database from 'better-sqlite3'
 import { DICTIONARY_PATH } from '../src/dictionary.js'
+import { frequencyRows } from '../src/frequency.js'
 import { compactWord, wordSpellings } from '../src/jmdict.js'
 
 const RELEASES_URL = 'https://api.github.com/repos/scriptin/jmdict-simplified/releases/latest'
 // The full dictionary, not jmdict-eng-common-*
 const ASSET_NAME = /^jmdict-eng-\d[^/]*\.json\.tgz$/
+const FREQUENCY_DIR = fileURLToPath(new URL('../dictionaries/', import.meta.url))
 
 async function download(url, accept) {
   const response = await fetch(url, { headers: { Accept: accept, 'User-Agent': 'yomu-dictionary-import' } })
@@ -38,6 +44,46 @@ function firstJsonFile(tarball) {
   throw new Error('The JMdict download did not contain a .json file')
 }
 
+// The files in a .zip, as { name: Buffer }. The central directory at the
+// end of the file lists each one: its compression method (0 stored, 8
+// deflate), compressed size, name, and where its local header is; the data
+// starts after that local header's name and extra field.
+function readZip(zip) {
+  let end = zip.length - 22
+  while (end >= 0 && zip.readUInt32LE(end) !== 0x06054b50) end -= 1
+  if (end < 0) throw new Error('not a .zip file')
+
+  const files = {}
+  let offset = zip.readUInt32LE(end + 16)
+  for (let i = 0; i < zip.readUInt16LE(end + 10); i += 1) {
+    const method = zip.readUInt16LE(offset + 10)
+    const size = zip.readUInt32LE(offset + 20)
+    const nameLength = zip.readUInt16LE(offset + 28)
+    const name = zip.subarray(offset + 46, offset + 46 + nameLength).toString('utf8')
+    const header = zip.readUInt32LE(offset + 42)
+    const start = header + 30 + zip.readUInt16LE(header + 26) + zip.readUInt16LE(header + 28)
+    const data = zip.subarray(start, start + size)
+    if (method === 0 || method === 8) files[name] = method === 8 ? inflateRawSync(data) : data
+    offset += 46 + nameLength + zip.readUInt16LE(offset + 30) + zip.readUInt16LE(offset + 32)
+  }
+  return files
+}
+
+// [file name, title, rows] for each frequency list in server/dictionaries/
+function frequencyLists() {
+  if (!existsSync(FREQUENCY_DIR)) return []
+  return readdirSync(FREQUENCY_DIR)
+    .filter((name) => name.toLowerCase().endsWith('.zip'))
+    .map((name) => {
+      const files = readZip(readFileSync(FREQUENCY_DIR + name))
+      const index = files['index.json'] ? JSON.parse(files['index.json'].toString('utf8')) : {}
+      const rows = Object.keys(files)
+        .filter((file) => /(^|\/)term_meta_bank_\d+\.json$/.test(file))
+        .flatMap((file) => frequencyRows(JSON.parse(files[file].toString('utf8'))))
+      return [name, index.title ?? name, rows]
+    })
+}
+
 async function main() {
   const release = await (await download(RELEASES_URL, 'application/vnd.github+json')).json()
   const asset = release.assets.find((a) => ASSET_NAME.test(a.name))
@@ -46,6 +92,7 @@ async function main() {
   console.log(`Downloading ${asset.name} (${(asset.size / 1e6).toFixed(1)} MB)...`)
   const tarball = gunzipSync(Buffer.from(await (await download(asset.browser_download_url, 'application/octet-stream')).arrayBuffer()))
   const jmdict = JSON.parse(firstJsonFile(tarball))
+  const lists = frequencyLists()
 
   console.log(`Building the dictionary from ${jmdict.words.length} entries...`)
   const buildPath = `${DICTIONARY_PATH}.building`
@@ -55,11 +102,13 @@ async function main() {
     CREATE TABLE meta (key TEXT PRIMARY KEY, value TEXT NOT NULL);
     CREATE TABLE entries (id INTEGER PRIMARY KEY, word TEXT NOT NULL);
     CREATE TABLE terms (term TEXT NOT NULL, entry_id INTEGER NOT NULL, common INTEGER NOT NULL);
+    CREATE TABLE frequencies (term TEXT NOT NULL, reading TEXT, rank INTEGER NOT NULL, display TEXT NOT NULL);
   `)
 
   const addMeta = db.prepare('INSERT INTO meta (key, value) VALUES (?, ?)')
   const addEntry = db.prepare('INSERT INTO entries (id, word) VALUES (?, ?)')
   const addTerm = db.prepare('INSERT INTO terms (term, entry_id, common) VALUES (?, ?, ?)')
+  const addRank = db.prepare('INSERT INTO frequencies (term, reading, rank, display) VALUES (?, ?, ?, ?)')
   db.transaction(() => {
     addMeta.run('version', jmdict.version)
     addMeta.run('dictDate', jmdict.dictDate)
@@ -68,8 +117,14 @@ async function main() {
       addEntry.run(id, JSON.stringify(compactWord(word)))
       for (const { text, common } of wordSpellings(word)) addTerm.run(text, id, common ? 1 : 0)
     }
+    for (const [name, title, rows] of lists) {
+      for (const row of rows) addRank.run(...row)
+      addMeta.run(`frequency:${name}`, title)
+      console.log(`Added frequency list ${title} (${rows.length} ranks)`)
+    }
   })()
   db.exec('CREATE INDEX terms_term ON terms (term)')
+  db.exec('CREATE INDEX frequencies_term ON frequencies (term)')
   db.close()
 
   renameSync(buildPath, DICTIONARY_PATH)

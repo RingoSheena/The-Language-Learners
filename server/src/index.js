@@ -839,19 +839,19 @@ app.post('/api/dictionary/lookup', requireUser, (req, res) => {
   }
 
   try {
-    const entries = lookupTerms([
+    const result = lookupTerms([
       ...new Set(
         terms.filter((term) => typeof term === 'string' && term && term.length <= MAX_TERM_LENGTH)
       ),
     ])
 
-    if (!entries) {
+    if (!result) {
       return res.status(503).json({
         error: 'The dictionary is not installed. Run npm run dictionary in server/.',
       })
     }
 
-    res.json({ entries })
+    res.json(result)
   } catch (error) {
     console.error('Unable to look up words:', error)
     res.status(500).json({ error: 'The dictionary lookup failed.' })

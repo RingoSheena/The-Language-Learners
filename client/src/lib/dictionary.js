@@ -1,5 +1,5 @@
 // src/lib/dictionary.js
-// Answers lookups from JMdict on the server, plus an optional JPDB frequency list. Falls back to a small built-in
+// Answers lookups from JMdict and a word frequency list (JPDB's) on the server. Falls back to a small built-in
 // starter list when the server can't be reached.
 const BUILTIN_TXT = `は|は (wa)|topic marker particle
 が|が|subject marker particle
@@ -126,12 +126,6 @@ const BUILTIN = new Map();
 BUILTIN_TXT.split("\n").forEach(l => { const [w, r, d] = l.split("|"); if (d) BUILTIN.set(w, [{ r, gloss: [d] }]); });
 
 
-const BASE = import.meta.env?.BASE_URL ?? "/";
-const SOURCES = [                       // files live in public/dict/
-  // optional JPDB frequency list (Yomitan format). Used only to rank ambiguous matches.
-  { url: BASE + "dict/term_meta_bank_1.json", kind: "freq", optional: true },
-];
-
 let DICT = { freq: new Map(), defs: new Map() };   // term -> [{r,v,disp}] / term -> [{r,gloss[]}] (dictionary files added locally)
 let ready = null;
 
@@ -161,9 +155,9 @@ export function ingest(arr) {
   }
 }
 
-// Cache the parsed files in IndexedDB so the big ones are only downloaded/parsed once.
-// Change the name (v3 -> v4 ...) whenever ingest() or the data files change, so a stale cache is ignored.
-// v2 held JMdict's common words, which now come from the server (see fetchEntries).
+// Keep dictionary files added with loadDictionaryFile in IndexedDB, so they're only parsed once.
+// Change the name (v3 -> v4 ...) whenever ingest() changes, so a stale cache is ignored.
+// v2 held JMdict's common words and the JPDB list, which now come from the server (see fetchEntries).
 const idb = () => new Promise((res, rej) => { const r = indexedDB.open("jpdict-v3", 1);
   r.onupgradeneeded = () => r.result.createObjectStore("kv"); r.onsuccess = () => res(r.result); r.onerror = () => rej(r.error); });
 async function saveCache() { try { (await idb()).transaction("kv", "readwrite").objectStore("kv").put(DICT, "dict"); } catch {} }
@@ -174,22 +168,7 @@ function loadCache() {
 }
 
 export function initDictionary() {
-  if (!ready) ready = (async () => {
-    await loadCache();
-    let got = false;
-    for (const s of SOURCES) {
-      if (s.kind === "freq" ? DICT.freq.size : DICT.defs.size) continue;   // already cached
-      try {
-        const r = await fetch(s.url);
-        if (!r.ok) { (s.optional ? console.info : console.warn)(`[dictionary] ${s.url} -> HTTP ${r.status}`); continue; }
-        ingest(await r.json()); got = true;
-      } catch (e) {   // a missing file makes Vite answer with index.html, which fails JSON parsing
-        (s.optional ? console.info : console.warn)(`[dictionary] could not load ${s.url}. Is the unzipped .json in public/dict/ with exactly this name?`, e);
-      }
-    }
-    if (got) saveCache();
-    console.info("[dictionary] ready", dictionaryStats());
-  })();
+  if (!ready) ready = loadCache().then(() => console.info("[dictionary] ready", dictionaryStats()));
   return ready;
 }
 
@@ -202,20 +181,21 @@ export const dictionaryStats = () => ({ fetched: found.size, defs: DICT.defs.siz
 // once to note every spelling it needs, they're fetched in one request, and search() runs again with them.
 // ---------------------------------------------------------------------------
 const found = new Map();                          // spelling -> JMdict entries [{r,gloss[],pos[],c}] ([] = not in it)
+const foundFreq = new Map();                      // spelling -> frequency ranks [{r,v,disp}] ([] = not ranked)
 const MAX_FOUND = 50000;                          // forget old lookups past this, so a long session stays small
 const LOOKUP_BATCH = 2000;                        // the server's limit per request
 let missing = null;                               // spellings search() needed that aren't in `found`, while it runs
 
 async function fetchEntries(terms) {
-  if (found.size + terms.length > MAX_FOUND) found.clear();
+  if (found.size + terms.length > MAX_FOUND) { found.clear(); foundFreq.clear(); }
   try {
     for (let i = 0; i < terms.length; i += LOOKUP_BATCH) {
       const batch = terms.slice(i, i + LOOKUP_BATCH);
       const r = await fetch("/api/dictionary/lookup", {
         method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ terms: batch }) });
       if (!r.ok) { console.warn(`[dictionary] lookup -> HTTP ${r.status}`, (await r.json().catch(() => ({}))).error ?? ""); return false; }
-      const { entries } = await r.json();
-      for (const t of batch) found.set(t, entries[t] || []);
+      const { entries, frequencies } = await r.json();
+      for (const t of batch) { found.set(t, entries[t] || []); foundFreq.set(t, frequencies?.[t] || []); }
     }
     return true;
   } catch (e) {
@@ -315,7 +295,8 @@ const PARTICLES = new Set(["は", "が", "を", "に", "で", "と", "も", "の
 const KANJI = /[㐀-鿿]/;
 const MAX_SPAN = 10;                              // characters
 const isParticle = d => Boolean(d.pos?.includes("prt"));
-const rank = w => Math.min(Infinity, ...(DICT.freq.get(w) || []).map(f => f.v));
+const freqOf = w => foundFreq.get(w)?.length ? foundFreq.get(w) : DICT.freq.get(w) || [];
+const rank = w => Math.min(Infinity, ...freqOf(w).map(f => f.v));
 
 function defsOf(w, kinds) {
   if (![...kinds].some(usable)) return [];
@@ -338,11 +319,11 @@ function lookupText(t, allowFreqOnly = false, exactOnly = false) {
     });
     // は is also 歯 (tooth) and 葉 (leaf) in JMdict; a particle-shaped word is most likely the particle
     const defs = PARTICLES.has(best.w) ? [...best.defs].sort((a, b) => isParticle(b) - isParticle(a)) : best.defs;
-    return { word: best.w, surface: t, freq: DICT.freq.get(best.w) || [], defs };
+    return { word: best.w, surface: t, freq: freqOf(best.w), defs };
   }
   if (allowFreqOnly) for (const [w] of cands) {
-    const freq = DICT.freq.get(w);
-    if (freq?.length) return { word: w, surface: t, freq, defs: [] };
+    const freq = freqOf(w);
+    if (freq.length) return { word: w, surface: t, freq, defs: [] };
   }
   return null;
 }

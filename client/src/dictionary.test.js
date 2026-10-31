@@ -22,10 +22,18 @@ const JMDICT = {
     { r: 'は', gloss: ['tooth'], pos: ['n'], c: 0 },
     { r: 'は', gloss: ['topic marker'], pos: ['prt'], c: 0 },
   ],
+  かう: [{ r: 'かう', gloss: ['to buy'], pos: ['v5u', 'vt'], c: 0 }],
+  かつ: [{ r: 'かつ', gloss: ['to win'], pos: ['v5t', 'vi'], c: 0 }],
   戯言: [
     { r: 'ざれごと', gloss: ['joke'], pos: ['n'], c: 1 },
     { r: 'たわごと', gloss: ['nonsense'], pos: ['n'], c: 0 },
   ],
+}
+
+// Ranks from the server's frequency list (lower is more frequent)
+const FREQUENCIES = {
+  かう: [{ r: null, v: 900, disp: '900㋕' }],
+  かつ: [{ r: null, v: 300, disp: '300㋕' }],
 }
 
 let requests = []
@@ -34,8 +42,8 @@ globalThis.fetch = async (url, { body }) => {
   const { terms } = JSON.parse(body)
   requests.push(terms)
   if (!serverUp) throw new Error('connection refused')
-  const entries = Object.fromEntries(terms.filter((t) => JMDICT[t]).map((t) => [t, JMDICT[t]]))
-  return { ok: true, json: async () => ({ entries }) }
+  const pick = (source) => Object.fromEntries(terms.filter((t) => source[t]).map((t) => [t, source[t]]))
+  return { ok: true, json: async () => ({ entries: pick(JMDICT), frequencies: pick(FREQUENCIES) }) }
 }
 console.log = () => {} // "dictionary miss:" lines
 console.warn = () => {}
@@ -69,6 +77,16 @@ test('a particle shows its particle meaning first', async () => {
 test('a run starting with a particle is not read as a conjugated verb', async () => {
   const pieces = ['に', 'なっ', 'て', 'い', 'た'].map((t) => ({ t, w: true }))
   assert.equal((await lookupAround(pieces, 1)).info.word, 'なる')
+})
+
+test('when a conjugation fits two words, the more frequent one wins', async () => {
+  // かって is かう's or かつ's て-form. Without ranks かう would win, as
+  // its rule comes first.
+  assert.equal((await lookup('かって')).word, 'かつ')
+})
+
+test('the frequency rank comes with the match', async () => {
+  assert.deepEqual((await lookup('かった')).freq, [{ r: null, v: 300, disp: '300㋕' }])
 })
 
 test('ば forms of godan and ichidan verbs are both found', async () => {
