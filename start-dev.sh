@@ -107,6 +107,18 @@ if ! MIGRATE_OUTPUT="$(npx prisma migrate deploy 2>&1)"; then
 fi
 echo "$MIGRATE_OUTPUT"
 
+# The dictionary is built from a download rather than kept in git, so a
+# fresh clone doesn't have it. Build it once; `npm run dictionary` in
+# server/ updates it to a newer JMdict later. Without it the reader still
+# works, but word lookups only know a short built-in list.
+if [ ! -f "$ROOT_DIR/server/dictionary.db" ]; then
+  echo "Building the dictionary (one-time download of about 18 MB)..."
+  if ! npm run dictionary; then
+    echo "Couldn't build the dictionary. Word lookups will only know a few common words" >&2
+    echo "until you run \`npm run dictionary\` in server/." >&2
+  fi
+fi
+
 echo "Starting backend..."
 ( npm run dev ) &
 BACKEND_PID=$!

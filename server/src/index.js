@@ -9,6 +9,8 @@ import { PrismaBetterSqlite3 } from '@prisma/adapter-better-sqlite3'
 import { PrismaClient } from './generated/prisma/client.ts'
 import { hashPassword, verifyPassword } from './auth.js'
 import { cardReviewStats, summarizePractice } from './flashcardStats.js'
+import { lookupFrequencies, lookupTerms } from './dictionary.js'
+import { cardRank } from './frequency.js'
 import { isValidTimeZone } from '../../shared/practiceDay.js'
 import { GRADES, isValidRetention, reviewCard } from '../../shared/srs.js'
 
@@ -589,6 +591,16 @@ const FLASHCARD_FIELDS = {
   lastReviewedAt: true,
 }
 
+// Adds each card's word frequency rank (see cardRank), for the Browse
+// page: null when the word isn't ranked or the dictionary isn't installed
+function withFrequency(cards) {
+  const frequencies = lookupFrequencies([...new Set(cards.map((card) => card.japanese))]) ?? {}
+  return cards.map((card) => ({
+    ...card,
+    frequency: cardRank(frequencies[card.japanese] ?? [], card.reading),
+  }))
+}
+
 // Pulls the editable flashcard fields out of a request body as trimmed
 // strings, leaving out anything the client didn't send so PATCH can
 // update one field without blanking the others.
@@ -630,7 +642,7 @@ app.get('/api/flashcards', requireUser, async (req, res) => {
     const passedByCard = byCard(passed)
 
     res.json(
-      flashcards.map((card) => ({
+      withFrequency(flashcards).map((card) => ({
         ...card,
         stats: cardReviewStats(card, allByCard.get(card.id), passedByCard.get(card.id)),
       }))
@@ -703,7 +715,7 @@ app.post('/api/flashcards', requireUser, async (req, res) => {
       select: FLASHCARD_FIELDS,
     })
 
-    res.status(201).json(flashcard)
+    res.status(201).json(withFrequency([flashcard])[0])
   } catch (error) {
     console.error('Unable to save flashcard:', error)
     res.status(500).json({ error: 'The flashcard could not be saved.' })
@@ -736,7 +748,7 @@ app.patch('/api/flashcards/:id', requireUser, async (req, res) => {
       select: FLASHCARD_FIELDS,
     })
 
-    res.json(flashcard)
+    res.json(withFrequency([flashcard])[0])
   } catch (error) {
     if (error.code === 'P2002') {
       return res.status(409).json({
@@ -870,6 +882,40 @@ app.delete('/api/flashcards/:id', requireUser, async (req, res) => {
   } catch (error) {
     console.error('Unable to delete flashcard:', error)
     res.status(500).json({ error: 'The flashcard could not be deleted.' })
+  }
+})
+
+// Dictionary entries for the spellings the reader's word lookup is
+// checking. One hover tries many spellings at once (every run of
+// neighboring words, and every way each could be conjugated), so they come
+// in one request instead of one each.
+const MAX_LOOKUP_TERMS = 2000
+const MAX_TERM_LENGTH = 20
+
+app.post('/api/dictionary/lookup', requireUser, (req, res) => {
+  const terms = req.body?.terms
+
+  if (!Array.isArray(terms) || terms.length > MAX_LOOKUP_TERMS) {
+    return res.status(400).json({ error: 'That lookup is not valid.' })
+  }
+
+  try {
+    const result = lookupTerms([
+      ...new Set(
+        terms.filter((term) => typeof term === 'string' && term && term.length <= MAX_TERM_LENGTH)
+      ),
+    ])
+
+    if (!result) {
+      return res.status(503).json({
+        error: 'The dictionary is not installed. Run npm run dictionary in server/.',
+      })
+    }
+
+    res.json(result)
+  } catch (error) {
+    console.error('Unable to look up words:', error)
+    res.status(500).json({ error: 'The dictionary lookup failed.' })
   }
 })
 
