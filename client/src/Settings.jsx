@@ -1,7 +1,52 @@
+import { useEffect, useState } from 'react'
 import TopBar from './TopBar.jsx'
+import { getSettings, updateSettings } from './lib/flashcardsApi.js'
+import { DEFAULT_RETENTION } from '../../shared/srs.js'
 import './Settings.css'
 
+// Target recall choices, within shared/srs.js's MIN_RETENTION..MAX_RETENTION
+const RETENTION_OPTIONS = [0.7, 0.75, 0.8, 0.85, 0.9, 0.93, 0.95, 0.97]
+
+const percent = (value) => `${Math.round(value * 100)}%`
+
 function Settings({ onBack }) {
+  const [desiredRetention, setDesiredRetention] = useState(null)
+  const [status, setStatus] = useState('') // '' | 'saving' | 'saved' | error message
+
+  useEffect(() => {
+    let cancelled = false
+
+    getSettings()
+      .then((settings) => {
+        if (!cancelled) setDesiredRetention(settings.desiredRetention)
+      })
+      .catch((err) => {
+        console.error('Failed to load settings:', err)
+        if (!cancelled) setStatus('Your settings could not be loaded.')
+      })
+
+    return () => {
+      cancelled = true
+    }
+  }, [])
+
+  async function changeRetention(event) {
+    const previous = desiredRetention
+    const next = Number(event.target.value)
+    setDesiredRetention(next)
+    setStatus('saving')
+
+    try {
+      const saved = await updateSettings({ desiredRetention: next })
+      setDesiredRetention(saved.desiredRetention)
+      setStatus('saved')
+    } catch (err) {
+      console.error('Failed to save settings:', err)
+      setDesiredRetention(previous)
+      setStatus(err.message)
+    }
+  }
+
   return (
     <div className="settings-page">
       <TopBar>
@@ -12,7 +57,40 @@ function Settings({ onBack }) {
 
       <div className="settings-content">
         <h2>Settings</h2>
-        <p>Nothing to configure yet.</p>
+
+        <section className="settings-section">
+          <h3>Flashcards</h3>
+
+          <label className="settings-field">
+            <span>Target recall</span>
+            <select
+              value={desiredRetention ?? ''}
+              onChange={changeRetention}
+              disabled={desiredRetention === null || status === 'saving'}
+            >
+              {desiredRetention === null && <option value="">Loading…</option>}
+              {RETENTION_OPTIONS.map((value) => (
+                <option key={value} value={value}>
+                  {percent(value)}
+                  {value === DEFAULT_RETENTION ? ' (recommended)' : ''}
+                </option>
+              ))}
+            </select>
+          </label>
+
+          <p className="settings-help">
+            How likely you should be to remember a card when it comes up for
+            review. Lower means fewer reviews but more forgetting; higher means
+            you remember more but review much more often. Changes apply to each
+            card from its next review.
+          </p>
+
+          {status && (
+            <p className={`settings-status${status === 'saving' || status === 'saved' ? '' : ' settings-status-error'}`}>
+              {status === 'saving' ? 'Saving…' : status === 'saved' ? 'Saved.' : status}
+            </p>
+          )}
+        </section>
       </div>
     </div>
   )

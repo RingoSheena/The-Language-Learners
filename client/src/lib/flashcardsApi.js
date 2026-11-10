@@ -102,6 +102,19 @@ export function getFlashcardStats() {
   return request(`/api/flashcards/stats?timeZone=${encodeURIComponent(timeZone)}`)
 }
 
+// Account settings that shape flashcard scheduling: { desiredRetention },
+// the target recall (see shared/srs.js).
+export function getSettings() {
+  return request('/api/settings')
+}
+
+export function updateSettings(changes) {
+  return request('/api/settings', {
+    method: 'PATCH',
+    body: JSON.stringify(changes),
+  })
+}
+
 export async function deleteFlashcard(id) {
   try {
     return await request(`/api/flashcards/${id}`, { method: 'DELETE' })

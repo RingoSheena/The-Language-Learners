@@ -4,13 +4,19 @@ import { isKanaOnly } from '../kana.js'
 import {
   deleteFlashcard,
   getFlashcardStats,
+  getSettings,
   listFlashcards,
   logPremadeReview,
   reviewFlashcard,
   updateFlashcard,
 } from '../lib/flashcardsApi.js'
 import { addDays, dayOfWeek } from '../../../shared/practiceDay.js'
-import { pickNextCard, RECENT_BUFFER_SIZE, reviewCard } from '../../../shared/srs.js'
+import {
+  DEFAULT_RETENTION,
+  pickNextCard,
+  RECENT_BUFFER_SIZE,
+  reviewCard,
+} from '../../../shared/srs.js'
 import PremadeDecks from './PremadeDecks.jsx'
 import './Flashcards.css'
 
@@ -276,6 +282,9 @@ export default function Flashcards({ onBack }) {
   const [browsing, setBrowsing] = useState(false)
   const [search, setSearch] = useState('')
   const [stats, setStats] = useState(null)
+  // The learner's target recall, from Settings. Only used for local
+  // scheduling and previews; the server reads its own saved copy.
+  const [desiredRetention, setDesiredRetention] = useState(DEFAULT_RETENTION)
   // When the current practice card was shown, to time each answer
   const cardShownAt = useRef(0)
   // Settles once every review sent so far has been saved (or failed)
@@ -326,6 +335,14 @@ export default function Flashcards({ onBack }) {
       .finally(() => {
         if (!cancelled) setLoading(false)
       })
+
+    // Falls back to the default, which only affects the previews and
+    // premade decks; the server schedules your cards with the saved value.
+    getSettings()
+      .then((settings) => {
+        if (!cancelled) setDesiredRetention(settings.desiredRetention)
+      })
+      .catch((err) => console.error('Failed to load settings:', err))
 
     // Stats are a nice-to-have, so a failure just leaves the panel out.
     pendingReviews.current
@@ -425,8 +442,8 @@ export default function Flashcards({ onBack }) {
       id: `premade-${index}-${card.japanese}`,
       dueAt: now.toISOString(),
       intervalDays: 0,
-      ease: 2.5,
-      streak: 0,
+      stability: null,
+      difficulty: null,
       lapses: 0,
       lastReviewedAt: null,
     }))
@@ -471,7 +488,7 @@ export default function Flashcards({ onBack }) {
 
       const { srsGrade } = PRACTICE_GRADES.find((option) => option.grade === grade)
       const now = new Date()
-      const schedule = reviewCard(card, srsGrade, now)
+      const schedule = reviewCard(card, srsGrade, now, { desiredRetention })
       const nextCards = list.map((candidate) =>
         candidate.id === card.id ? { ...candidate, ...schedule } : candidate
       )
@@ -535,7 +552,7 @@ export default function Flashcards({ onBack }) {
           setPracticeSaveError(true)
         })
     },
-    [cards, practice]
+    [cards, desiredRetention, practice]
   )
 
   function exitPractice() {
@@ -767,7 +784,8 @@ export default function Flashcards({ onBack }) {
                   <div className="anki-grade-col" key={grade}>
                     <span className="anki-grade-interval">
                       {formatIntervalPreview(
-                        reviewCard(card, srsGrade, new Date()).intervalDays
+                        reviewCard(card, srsGrade, new Date(), { desiredRetention })
+                          .intervalDays
                       )}
                     </span>
                     <button

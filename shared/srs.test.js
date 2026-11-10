@@ -1,6 +1,6 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { reviewCard, pickNextCard } from './srs.js'
+import { reviewCard, pickNextCard, DEFAULT_RETENTION } from './srs.js'
 
 const NOW = new Date('2026-01-10T12:00:00Z')
 const DAY = 24 * 60 * 60 * 1000
@@ -9,107 +9,142 @@ const newCard = (id, overrides = {}) => ({
   id,
   dueAt: NOW.toISOString(),
   intervalDays: 0,
-  ease: 2.5,
-  streak: 0,
+  stability: null,
+  difficulty: null,
   lapses: 0,
+  lastReviewedAt: null,
   ...overrides,
 })
 
+// A card last reviewed `daysAgo` days before NOW and due at the end of its
+// interval (on time by default).
+const reviewed = (overrides, daysAgo = overrides.intervalDays) => {
+  const lastReviewedAt = new Date(NOW.getTime() - daysAgo * DAY)
+  return newCard('a', {
+    lastReviewedAt: lastReviewedAt.toISOString(),
+    dueAt: new Date(lastReviewedAt.getTime() + overrides.intervalDays * DAY).toISOString(),
+    ...overrides,
+  })
+}
+
 const daysUntilDue = (result) => (new Date(result.dueAt) - NOW) / DAY
 
-test('first review schedules by grade: hard and medium 1 day, easy 3', () => {
+test('first review schedules by grade from the starting stabilities', () => {
   const hard = reviewCard(newCard('a'), 'hard', NOW)
   const medium = reviewCard(newCard('a'), 'medium', NOW)
   const easy = reviewCard(newCard('a'), 'easy', NOW)
   assert.equal(daysUntilDue(hard), 1)
-  assert.equal(daysUntilDue(medium), 1)
-  assert.equal(daysUntilDue(easy), 3)
-  for (const result of [hard, medium, easy]) assert.equal(result.streak, 1)
+  assert.equal(daysUntilDue(medium), 2)
+  assert.equal(daysUntilDue(easy), 8)
+  assert.ok(hard.difficulty > medium.difficulty)
+  assert.ok(medium.difficulty > easy.difficulty)
 })
 
-test('repeated medium passes grow the interval 1 -> 3 -> interval * ease', () => {
+test('intervals are whole days', () => {
+  let card = newCard('a')
+  for (let i = 0; i < 5; i++) {
+    card = { ...card, ...reviewCard(card, 'medium', new Date(card.dueAt)) }
+    assert.ok(Number.isInteger(card.intervalDays))
+  }
+})
+
+test('repeated on-time medium passes keep growing the interval', () => {
   let card = newCard('a')
   const intervals = []
-  for (let i = 0; i < 3; i++) {
+  for (let i = 0; i < 4; i++) {
     // Review each time the card comes due, like a real learner would.
     card = { ...card, ...reviewCard(card, 'medium', new Date(card.dueAt)) }
     intervals.push(card.intervalDays)
   }
-  assert.deepEqual(intervals, [1, 3, 7.5])
+  for (let i = 1; i < intervals.length; i++) {
+    assert.ok(intervals[i] > intervals[i - 1], `intervals: ${intervals}`)
+  }
 })
 
-test('hard lowers ease and grows the interval slowly; easy raises ease', () => {
-  const card = newCard('a', { streak: 2, intervalDays: 3 })
+test('on a reviewed card, hard < medium < easy', () => {
+  const card = reviewed({ intervalDays: 10, stability: 10, difficulty: 5 })
   const hard = reviewCard(card, 'hard', NOW)
   const medium = reviewCard(card, 'medium', NOW)
   const easy = reviewCard(card, 'easy', NOW)
-  assert.ok(hard.ease < card.ease)
-  assert.equal(medium.ease, card.ease)
-  assert.ok(easy.ease > card.ease)
   assert.ok(hard.intervalDays < medium.intervalDays)
   assert.ok(medium.intervalDays < easy.intervalDays)
+  assert.ok(hard.difficulty > card.difficulty)
+  assert.ok(easy.difficulty < card.difficulty)
 })
 
-test('fail resets the streak, counts a lapse, and is due immediately', () => {
-  const card = newCard('a', { streak: 4, intervalDays: 10, dueAt: NOW.toISOString() })
+test('fail counts a lapse, lowers stability, and is due immediately', () => {
+  const card = reviewed({ intervalDays: 10, stability: 10, difficulty: 5 })
   const result = reviewCard(card, 'fail', NOW)
-  assert.equal(result.streak, 0)
   assert.equal(result.lapses, 1)
   assert.equal(result.intervalDays, 0)
   assert.equal(result.dueAt, NOW.toISOString())
-  assert.ok(result.ease < card.ease)
+  assert.ok(result.stability < card.stability)
+  assert.ok(result.difficulty > card.difficulty)
 })
 
-test('ease never drops below the floor', () => {
+test('difficulty stays between 1 and 10', () => {
   let card = newCard('a')
-  for (let i = 0; i < 20; i++) card = { ...card, ...reviewCard(card, 'fail', NOW) }
-  assert.equal(card.ease, 1.3)
-  const hard = reviewCard(card, 'hard', NOW)
-  assert.equal(hard.ease, 1.3)
+  for (let i = 0; i < 30; i++) card = { ...card, ...reviewCard(card, 'fail', NOW) }
+  assert.ok(card.difficulty <= 10)
+  for (let i = 0; i < 30; i++) {
+    card = { ...card, ...reviewCard(card, 'easy', new Date(card.dueAt)) }
+  }
+  assert.ok(card.difficulty >= 1)
 })
 
-test('a failed card restarts with first-time intervals', () => {
-  const failed = { ...newCard('a', { streak: 5, intervalDays: 20 }) }
-  const afterFail = { ...failed, ...reviewCard(failed, 'fail', NOW) }
-  assert.equal(daysUntilDue(reviewCard(afterFail, 'medium', NOW)), 1)
+test('a failed card comes back after a short interval once passed', () => {
+  const card = reviewed({ intervalDays: 30, stability: 30, difficulty: 5 })
+  const afterFail = { ...card, ...reviewCard(card, 'fail', NOW) }
+  const afterPass = reviewCard(afterFail, 'medium', NOW)
+  assert.ok(afterPass.intervalDays < 30)
+  assert.ok(afterPass.intervalDays >= 1)
 })
 
 test('unknown grades are rejected', () => {
   assert.throws(() => reviewCard(newCard('a'), 'pass', NOW))
 })
 
-test('hard lowers ease, so it still grows the interval slower than medium', () => {
-  let hard = newCard('a')
-  let medium = newCard('a')
-  for (let i = 0; i < 4; i++) {
-    hard = { ...hard, ...reviewCard(hard, 'hard', new Date(hard.dueAt)) }
-    medium = { ...medium, ...reviewCard(medium, 'medium', new Date(medium.dueAt)) }
-  }
-  assert.ok(hard.intervalDays < medium.intervalDays)
+test('an early pass grows the card less than an on-time one, but never shrinks it', () => {
+  const card = reviewed({ intervalDays: 10, stability: 10, difficulty: 5 }, 2)
+  const early = reviewCard(card, 'medium', NOW)
+  const onTime = reviewCard(card, 'medium', card.dueAt)
+  assert.ok(early.stability >= card.stability)
+  assert.ok(early.intervalDays >= card.intervalDays)
+  assert.ok(early.stability < onTime.stability)
 })
 
-test('an early medium or easy pass never shortens the schedule', () => {
-  const reviewed = new Date(NOW.getTime() - DAY)
-  const card = newCard('a', {
-    streak: 3,
-    intervalDays: 10,
-    lastReviewedAt: reviewed.toISOString(),
-    dueAt: new Date(reviewed.getTime() + 10 * DAY).toISOString(),
-  })
+test('a same-day medium or easy pass never lowers stability', () => {
+  const card = { ...newCard('a'), ...reviewCard(newCard('a'), 'medium', NOW) }
+  const later = new Date(NOW.getTime() + 60 * 60 * 1000)
   for (const grade of ['medium', 'easy']) {
-    assert.ok(reviewCard(card, grade, NOW).intervalDays >= 10)
+    assert.ok(reviewCard(card, grade, later).stability >= card.stability)
   }
 })
 
-test('an early hard grade is based on elapsed time and can shorten it', () => {
-  const reviewed = new Date(NOW.getTime() - DAY)
-  const card = newCard('a', {
-    streak: 3,
-    intervalDays: 10,
-    lastReviewedAt: reviewed.toISOString(),
-    dueAt: new Date(reviewed.getTime() + 10 * DAY).toISOString(),
-  })
-  assert.ok(reviewCard(card, 'hard', NOW).intervalDays < 10)
+test('a lower target recall schedules longer intervals, a higher one shorter', () => {
+  const card = reviewed({ intervalDays: 10, stability: 10, difficulty: 5 })
+  const low = reviewCard(card, 'medium', NOW, { desiredRetention: 0.8 })
+  const normal = reviewCard(card, 'medium', NOW)
+  const high = reviewCard(card, 'medium', NOW, { desiredRetention: 0.95 })
+  assert.ok(low.intervalDays > normal.intervalDays)
+  assert.ok(high.intervalDays < normal.intervalDays)
+  // Target recall only changes the interval, not what FSRS learned.
+  assert.equal(low.stability, normal.stability)
+})
+
+test('the default target recall is 90%', () => {
+  const card = reviewed({ intervalDays: 10, stability: 10, difficulty: 5 })
+  assert.deepEqual(
+    reviewCard(card, 'medium', NOW),
+    reviewCard(card, 'medium', NOW, { desiredRetention: DEFAULT_RETENTION })
+  )
+  assert.equal(DEFAULT_RETENTION, 0.9)
+})
+
+test('target recall outside 70-97% is rejected', () => {
+  for (const desiredRetention of [0.5, 0.99, NaN]) {
+    assert.throws(() => reviewCard(newCard('a'), 'medium', NOW, { desiredRetention }))
+  }
 })
 
 test('pickNextCard skips cards that are not due yet', () => {
@@ -152,7 +187,7 @@ test('pickNextCard prefers the most overdue card', () => {
 
 test('pickNextCard prefers a card with lapses when equally overdue', () => {
   const plain = newCard('plain')
-  const struggled = newCard('struggled', { lapses: 3, ease: 1.6 })
+  const struggled = newCard('struggled', { lapses: 3, difficulty: 8 })
   assert.equal(pickNextCard([plain, struggled], { now: NOW }).id, 'struggled')
 })
 
@@ -165,7 +200,7 @@ test('pickNextCard keeps recently shown cards out of the pick', () => {
 })
 
 test('a failed card does not come straight back while others are due', () => {
-  const failed = newCard('failed', { lapses: 5, ease: 1.3 })
+  const failed = newCard('failed', { lapses: 5, difficulty: 9 })
   const others = [newCard('x'), newCard('y')]
   const next = pickNextCard([failed, ...others], { now: NOW, recentIds: ['failed'] })
   assert.notEqual(next.id, 'failed')

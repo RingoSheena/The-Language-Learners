@@ -12,7 +12,7 @@ import { cardReviewStats, summarizePractice } from './flashcardStats.js'
 import { lookupFrequencies, lookupTerms } from './dictionary.js'
 import { cardRank } from './frequency.js'
 import { isValidTimeZone } from '../../shared/practiceDay.js'
-import { GRADES, reviewCard } from '../../shared/srs.js'
+import { GRADES, isValidRetention, reviewCard } from '../../shared/srs.js'
 
 const app = express()
 const port = process.env.PORT || 3001
@@ -220,6 +220,49 @@ app.post('/api/logout', (req, res) => {
 // from whatever it last wrote to localStorage.
 app.get('/api/me', requireUser, (req, res) => {
   res.json({ user: req.user })
+})
+
+const SETTINGS_FIELDS = { desiredRetention: true }
+
+// The logged-in user's settings. Saved on the account, not in the browser,
+// because the server schedules flashcards with them.
+app.get('/api/settings', requireUser, async (req, res) => {
+  try {
+    const settings = await prisma.user.findUnique({
+      where: { id: req.user.id },
+      select: SETTINGS_FIELDS,
+    })
+
+    if (!settings) {
+      return res.status(404).json({ error: 'Account not found.' })
+    }
+
+    res.json(settings)
+  } catch (error) {
+    console.error('Unable to load settings:', error)
+    res.status(500).json({ error: 'Your settings could not be loaded.' })
+  }
+})
+
+app.patch('/api/settings', requireUser, async (req, res) => {
+  try {
+    const { desiredRetention } = req.body ?? {}
+
+    if (!isValidRetention(desiredRetention)) {
+      return res.status(400).json({ error: 'Target recall must be between 70% and 97%.' })
+    }
+
+    const settings = await prisma.user.update({
+      where: { id: req.user.id },
+      data: { desiredRetention },
+      select: SETTINGS_FIELDS,
+    })
+
+    res.json(settings)
+  } catch (error) {
+    console.error('Unable to save settings:', error)
+    res.status(500).json({ error: 'Your settings could not be saved.' })
+  }
 })
 
 // Everything about a book except the EPUB file itself, which is only
@@ -542,8 +585,8 @@ const FLASHCARD_FIELDS = {
   updatedAt: true,
   dueAt: true,
   intervalDays: true,
-  ease: true,
-  streak: true,
+  stability: true,
+  difficulty: true,
   lapses: true,
   lastReviewedAt: true,
 }
@@ -729,8 +772,9 @@ function readReviewDuration(durationMs) {
 }
 
 // Grade a card. The client sends the grade and how long it took to answer;
-// the new schedule is computed here from the saved card, with the same
-// shared/srs.js the client uses for its interval previews. Each review is
+// the new schedule is computed here from the saved card and the user's
+// target recall, with the same shared/srs.js the client uses for its
+// interval previews. Each review is
 // also logged for practice stats.
 app.post('/api/flashcards/:id/review', requireUser, async (req, res) => {
   try {
@@ -741,17 +785,23 @@ app.post('/api/flashcards/:id/review', requireUser, async (req, res) => {
       return res.status(400).json({ error: 'That review is not valid.' })
     }
 
-    const card = await prisma.flashcard.findFirst({
-      where: { id: req.params.id, userId: req.user.id },
-      select: FLASHCARD_FIELDS,
-    })
+    const [card, user] = await Promise.all([
+      prisma.flashcard.findFirst({
+        where: { id: req.params.id, userId: req.user.id },
+        select: FLASHCARD_FIELDS,
+      }),
+      prisma.user.findUnique({
+        where: { id: req.user.id },
+        select: SETTINGS_FIELDS,
+      }),
+    ])
 
-    if (!card) {
+    if (!card || !user) {
       return res.status(404).json({ error: 'Flashcard not found.' })
     }
 
     const now = new Date()
-    const schedule = reviewCard(card, grade, now)
+    const schedule = reviewCard(card, grade, now, user)
 
     const [flashcard] = await prisma.$transaction([
       prisma.flashcard.update({

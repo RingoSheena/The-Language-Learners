@@ -8,6 +8,7 @@
     "dev": "nodemon src/index.js",
     "start": "node src/index.js",
     "test": "node --test src/*.test.js ../shared/*.test.js",
+    "backfill:fsrs": "node scripts/backfillFsrs.js",
     "dictionary": "node scripts/import-jmdict.js"
   },
   "keywords": [],
