@@ -9,9 +9,12 @@ import { PrismaBetterSqlite3 } from '@prisma/adapter-better-sqlite3'
 import { PrismaClient } from './generated/prisma/client.ts'
 import { hashPassword, verifyPassword } from './auth.js'
 import { getEpubUploadProblem, MAX_EPUB_SIZE_BYTES } from './bookUpload.js'
-import { cardReviewStats, summarizePractice } from './flashcardStats.js'
+import { cardReviewStats, reviewsInDays, summarizePractice } from './flashcardStats.js'
+import { lookupFrequencies, lookupTerms } from './dictionary.js'
+import { resolveGoogleUser, verifyGoogleToken } from './google.js'
+import { cardRank } from './frequency.js'
 import { isValidTimeZone } from '../../shared/practiceDay.js'
-import { GRADES, reviewCard } from '../../shared/srs.js'
+import { GRADES, isValidRetention, reviewCard } from '../../shared/srs.js'
 
 const app = express()
 const port = process.env.PORT || 3001
@@ -98,7 +101,7 @@ app.get('/', (req, res) => {
 })
 
 function issueSession(res, user) {
-  const token = jwt.sign({ sub: user.id, email: user.email }, JWT_SECRET, {
+  const token = jwt.sign({ sub: user.id, email: user.email, ver: user.sessionVersion ?? 0 }, JWT_SECRET, {
     expiresIn: '7d',
   })
 
@@ -115,15 +118,28 @@ function issueSession(res, user) {
 // wrong with it (missing, expired, tampered) just leaves req.user unset --
 // requireUser is what turns that into a 401, so routes that don't need
 // a logged-in user can still use this to *optionally* know who's asking.
-function attachUser(req, res, next) {
+// The token's "ver" must also match the account's current sessionVersion,
+// which is bumped to end every existing session at once (tokens issued
+// before sessionVersion existed have no "ver" and count as version 0).
+async function attachUser(req, res, next) {
   const token = req.cookies?.[SESSION_COOKIE]
 
   if (token) {
+    let payload
     try {
-      const payload = jwt.verify(token, JWT_SECRET)
-      req.user = { id: payload.sub, email: payload.email }
+      payload = jwt.verify(token, JWT_SECRET)
     } catch {
       // Invalid or expired token -- treat the same as not logged in.
+    }
+
+    if (payload) {
+      const account = await prisma.user.findUnique({
+        where: { id: payload.sub },
+        select: { sessionVersion: true },
+      })
+      if (account && account.sessionVersion === (payload.ver ?? 0)) {
+        req.user = { id: payload.sub, email: payload.email }
+      }
     }
   }
 
@@ -210,6 +226,15 @@ app.post('/api/login', authLimiter, async (req, res) => {
       return res.status(401).json({ error: 'Invalid email or password.' })
     }
 
+    // Accounts created through (or linked to) Google have no password.
+    // Saying so doesn't leak anything new: registering already reveals
+    // whether an email has an account.
+    if (!user.passwordHash && user.googleId) {
+      return res.status(401).json({
+        error: 'This account uses Google sign-in. Use "Continue with Google" instead.',
+      })
+    }
+
     const passwordMatch = verifyPassword(password, user.passwordHash)
 
     if (!passwordMatch) {
@@ -228,6 +253,49 @@ app.post('/api/login', authLimiter, async (req, res) => {
   }
 })
 
+// "Sign in with Google": the browser sends the ID token Google gave it, we
+// verify it with Google's keys, then sign in (or create/link) the matching
+// account and start the same session cookie a password login does.
+app.post('/api/auth/google', authLimiter, async (req, res) => {
+  try {
+    const { GOOGLE_CLIENT_ID } = process.env
+    if (!GOOGLE_CLIENT_ID) {
+      return res.status(501).json({ error: 'Google sign-in is not set up on this server.' })
+    }
+
+    const credential = String(req.body.credential ?? '')
+    if (!credential) {
+      return res.status(400).json({ error: 'Missing Google credential.' })
+    }
+
+    let claims
+    try {
+      claims = await verifyGoogleToken(credential, GOOGLE_CLIENT_ID)
+    } catch (error) {
+      // Bad signature, expired, or issued for a different app
+      console.warn('Rejected Google credential:', error.message)
+      return res.status(401).json({ error: 'Google sign-in failed. Please try again.' })
+    }
+
+    const user = await resolveGoogleUser(prisma, claims)
+    if (!user) {
+      return res.status(403).json({
+        error: 'This Google account could not be used to sign in.',
+      })
+    }
+
+    issueSession(res, user)
+
+    res.status(200).json({
+      message: 'Login successful',
+      user: { id: user.id, email: user.email },
+    })
+  } catch (error) {
+    console.error('Google sign-in error:', error)
+    res.status(500).json({ error: 'Internal server error' })
+  }
+})
+
 app.post('/api/logout', (req, res) => {
   res.clearCookie(SESSION_COOKIE)
   res.json({ message: 'Logged out' })
@@ -237,6 +305,49 @@ app.post('/api/logout', (req, res) => {
 // from whatever it last wrote to localStorage.
 app.get('/api/me', requireUser, (req, res) => {
   res.json({ user: req.user })
+})
+
+const SETTINGS_FIELDS = { desiredRetention: true }
+
+// The logged-in user's settings. Saved on the account, not in the browser,
+// because the server schedules flashcards with them.
+app.get('/api/settings', requireUser, async (req, res) => {
+  try {
+    const settings = await prisma.user.findUnique({
+      where: { id: req.user.id },
+      select: SETTINGS_FIELDS,
+    })
+
+    if (!settings) {
+      return res.status(404).json({ error: 'Account not found.' })
+    }
+
+    res.json(settings)
+  } catch (error) {
+    console.error('Unable to load settings:', error)
+    res.status(500).json({ error: 'Your settings could not be loaded.' })
+  }
+})
+
+app.patch('/api/settings', requireUser, async (req, res) => {
+  try {
+    const { desiredRetention } = req.body ?? {}
+
+    if (!isValidRetention(desiredRetention)) {
+      return res.status(400).json({ error: 'Target recall must be between 70% and 97%.' })
+    }
+
+    const settings = await prisma.user.update({
+      where: { id: req.user.id },
+      data: { desiredRetention },
+      select: SETTINGS_FIELDS,
+    })
+
+    res.json(settings)
+  } catch (error) {
+    console.error('Unable to save settings:', error)
+    res.status(500).json({ error: 'Your settings could not be saved.' })
+  }
 })
 
 // Everything about a book except the EPUB file itself, which is only
@@ -548,10 +659,20 @@ const FLASHCARD_FIELDS = {
   updatedAt: true,
   dueAt: true,
   intervalDays: true,
-  ease: true,
-  streak: true,
+  stability: true,
+  difficulty: true,
   lapses: true,
   lastReviewedAt: true,
+}
+
+// Adds each card's word frequency rank (see cardRank), for the Browse
+// page: null when the word isn't ranked or the dictionary isn't installed
+function withFrequency(cards) {
+  const frequencies = lookupFrequencies([...new Set(cards.map((card) => card.japanese))]) ?? {}
+  return cards.map((card) => ({
+    ...card,
+    frequency: cardRank(frequencies[card.japanese] ?? [], card.reading),
+  }))
 }
 
 // Pulls the editable flashcard fields out of a request body as trimmed
@@ -595,7 +716,7 @@ app.get('/api/flashcards', requireUser, async (req, res) => {
     const passedByCard = byCard(passed)
 
     res.json(
-      flashcards.map((card) => ({
+      withFrequency(flashcards).map((card) => ({
         ...card,
         stats: cardReviewStats(card, allByCard.get(card.id), passedByCard.get(card.id)),
       }))
@@ -629,7 +750,7 @@ app.get('/api/flashcards/stats', requireUser, async (req, res) => {
       }),
       prisma.flashcard.findMany({
         where: { userId: req.user.id },
-        select: { dueAt: true, intervalDays: true, lastReviewedAt: true },
+        select: { createdAt: true, dueAt: true, intervalDays: true, lastReviewedAt: true },
       }),
     ])
 
@@ -637,6 +758,52 @@ app.get('/api/flashcards/stats', requireUser, async (req, res) => {
   } catch (error) {
     console.error('Unable to load flashcard stats:', error)
     res.status(500).json({ error: 'Your practice stats could not be loaded.' })
+  }
+})
+
+const DAY_KEY_PATTERN = /^\d{4}-\d{2}-\d{2}$/
+const DAY_MS = 24 * 60 * 60 * 1000
+// The longest range one request can cover: an activity chart's widest bar
+const MAX_REVIEW_RANGE_DAYS = 31
+
+const isDayKey = (value) =>
+  typeof value === 'string' && DAY_KEY_PATTERN.test(value) && !Number.isNaN(Date.parse(value))
+
+// The logged-in user's reviews on practice days `start` through `end`
+// (inclusive), oldest first, for the heatmap's day view and the activity
+// charts' bars: ?start=YYYY-MM-DD&end=YYYY-MM-DD&timeZone=<IANA name>.
+// cardId is null for premade deck reviews and deleted cards.
+app.get('/api/flashcards/reviews', requireUser, async (req, res) => {
+  try {
+    const { start, end, timeZone } = req.query
+
+    if (!isValidTimeZone(timeZone)) {
+      return res.status(400).json({ error: 'A valid timeZone is required.' })
+    }
+    if (!isDayKey(start) || !isDayKey(end) || end < start) {
+      return res.status(400).json({ error: 'A start and end day in YYYY-MM-DD form are required.' })
+    }
+
+    const startMs = Date.parse(`${start}T00:00:00Z`)
+    const endMs = Date.parse(`${end}T00:00:00Z`)
+    if ((endMs - startMs) / DAY_MS >= MAX_REVIEW_RANGE_DAYS) {
+      return res.status(400).json({ error: `Ranges can be at most ${MAX_REVIEW_RANGE_DAYS} days.` })
+    }
+
+    // Every time zone's practice days for the range fall within a day either
+    // side of it in UTC; reviewsInDays narrows it down exactly.
+    const logs = await prisma.reviewLog.findMany({
+      where: {
+        userId: req.user.id,
+        reviewedAt: { gte: new Date(startMs - DAY_MS), lt: new Date(endMs + 2 * DAY_MS) },
+      },
+      select: { cardId: true, grade: true, reviewedAt: true, durationMs: true },
+    })
+
+    res.json({ start, end, reviews: reviewsInDays(logs, start, end, timeZone) })
+  } catch (error) {
+    console.error('Unable to load reviews for days:', error)
+    res.status(500).json({ error: 'Those reviews could not be loaded.' })
   }
 })
 
@@ -668,7 +835,7 @@ app.post('/api/flashcards', requireUser, async (req, res) => {
       select: FLASHCARD_FIELDS,
     })
 
-    res.status(201).json(flashcard)
+    res.status(201).json(withFrequency([flashcard])[0])
   } catch (error) {
     console.error('Unable to save flashcard:', error)
     res.status(500).json({ error: 'The flashcard could not be saved.' })
@@ -701,7 +868,7 @@ app.patch('/api/flashcards/:id', requireUser, async (req, res) => {
       select: FLASHCARD_FIELDS,
     })
 
-    res.json(flashcard)
+    res.json(withFrequency([flashcard])[0])
   } catch (error) {
     if (error.code === 'P2002') {
       return res.status(409).json({
@@ -725,8 +892,9 @@ function readReviewDuration(durationMs) {
 }
 
 // Grade a card. The client sends the grade and how long it took to answer;
-// the new schedule is computed here from the saved card, with the same
-// shared/srs.js the client uses for its interval previews. Each review is
+// the new schedule is computed here from the saved card and the user's
+// target recall, with the same shared/srs.js the client uses for its
+// interval previews. Each review is
 // also logged for practice stats.
 app.post('/api/flashcards/:id/review', requireUser, async (req, res) => {
   try {
@@ -737,17 +905,23 @@ app.post('/api/flashcards/:id/review', requireUser, async (req, res) => {
       return res.status(400).json({ error: 'That review is not valid.' })
     }
 
-    const card = await prisma.flashcard.findFirst({
-      where: { id: req.params.id, userId: req.user.id },
-      select: FLASHCARD_FIELDS,
-    })
+    const [card, user] = await Promise.all([
+      prisma.flashcard.findFirst({
+        where: { id: req.params.id, userId: req.user.id },
+        select: FLASHCARD_FIELDS,
+      }),
+      prisma.user.findUnique({
+        where: { id: req.user.id },
+        select: SETTINGS_FIELDS,
+      }),
+    ])
 
-    if (!card) {
+    if (!card || !user) {
       return res.status(404).json({ error: 'Flashcard not found.' })
     }
 
     const now = new Date()
-    const schedule = reviewCard(card, grade, now)
+    const schedule = reviewCard(card, grade, now, user)
 
     const [flashcard] = await prisma.$transaction([
       prisma.flashcard.update({
@@ -828,6 +1002,40 @@ app.delete('/api/flashcards/:id', requireUser, async (req, res) => {
   } catch (error) {
     console.error('Unable to delete flashcard:', error)
     res.status(500).json({ error: 'The flashcard could not be deleted.' })
+  }
+})
+
+// Dictionary entries for the spellings the reader's word lookup is
+// checking. One hover tries many spellings at once (every run of
+// neighboring words, and every way each could be conjugated), so they come
+// in one request instead of one each.
+const MAX_LOOKUP_TERMS = 2000
+const MAX_TERM_LENGTH = 20
+
+app.post('/api/dictionary/lookup', requireUser, (req, res) => {
+  const terms = req.body?.terms
+
+  if (!Array.isArray(terms) || terms.length > MAX_LOOKUP_TERMS) {
+    return res.status(400).json({ error: 'That lookup is not valid.' })
+  }
+
+  try {
+    const result = lookupTerms([
+      ...new Set(
+        terms.filter((term) => typeof term === 'string' && term && term.length <= MAX_TERM_LENGTH)
+      ),
+    ])
+
+    if (!result) {
+      return res.status(503).json({
+        error: 'The dictionary is not installed. Run npm run dictionary in server/.',
+      })
+    }
+
+    res.json(result)
+  } catch (error) {
+    console.error('Unable to look up words:', error)
+    res.status(500).json({ error: 'The dictionary lookup failed.' })
   }
 })
 

@@ -27,3 +27,8 @@ test('no deck repeats a word', () => {
     assert.equal(new Set(words).size, words.length, `${deck.id} has a duplicate`)
   }
 })
+
+test('all decks contain at least twenty cards and daily verbs covers every level', () => {
+  for (const deck of PREMADE_DECKS) assert.ok(deck.cards.length >= 20, deck.id)
+  assert.equal(PREMADE_DECKS.filter((deck) => deck.category === 'daily-verbs').length, 3)
+})

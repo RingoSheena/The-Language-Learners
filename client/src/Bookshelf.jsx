@@ -1,7 +1,9 @@
 import { useMemo, useRef, useState } from 'react'
 import TopBar from './TopBar.jsx'
+import BookshelfFilters from './BookshelfFilters.jsx'
 import './Bookshelf.css'
 import { loadLocalReadingState } from './readingState.js'
+import { countByStatus, filterBooks } from './bookshelfFilter.js'
 
 function Bookshelf({
   books,
@@ -25,6 +27,27 @@ function Bookshelf({
       ),
     [books]
   )
+
+  const [query, setQuery] = useState('')
+  const [status, setStatus] = useState('all')
+
+  // Books not opened since progress started syncing only have it locally.
+  // Look each position up once and reuse it for filtering, counts and the
+  // Resume label.
+  const positions = new Map(
+    books.map((book) => [
+      book.id,
+      book.readingPosition ?? loadLocalReadingState(book.id).position,
+    ])
+  )
+  const getProgress = (book) => positions.get(book.id)?.progress
+  const counts = countByStatus(sortedBooks, query, getProgress)
+  const visibleBooks = filterBooks(sortedBooks, { query, status }, getProgress)
+
+  const clearFilters = () => {
+    setQuery('')
+    setStatus('all')
+  }
 
   const handleFileChange = (event) => {
     const file = event.target.files[0]
@@ -111,10 +134,26 @@ function Bookshelf({
             and drop one anywhere in this area.
           </p>
         ) : (
+          <>
+          <BookshelfFilters
+            query={query}
+            status={status}
+            counts={counts}
+            onQueryChange={setQuery}
+            onStatusChange={setStatus}
+          />
+
+          {visibleBooks.length === 0 ? (
+            <p className="bookshelf-empty">
+              No books match your filters.{' '}
+              <button type="button" className="link-btn" onClick={clearFilters}>
+                Clear filters
+              </button>
+            </p>
+          ) : (
           <div className="bookshelf-grid">
-            {sortedBooks.map((book) => {
-              // Books not opened since progress started syncing only have it locally
-              const position = book.readingPosition ?? loadLocalReadingState(book.id).position
+            {visibleBooks.map((book) => {
+              const position = positions.get(book.id)
               return (
               <div key={book.id} className="book-card">
                 <button
@@ -157,6 +196,8 @@ function Bookshelf({
               )
             })}
           </div>
+          )}
+          </>
         )}
       </div>
     </div>

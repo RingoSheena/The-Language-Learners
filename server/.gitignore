@@ -6,3 +6,10 @@ node_modules
 
 # Local SQLite database
 /dev.db
+
+# JMdict dictionary, built by npm run dictionary
+/dictionary.db
+/dictionary.db.building
+
+# Frequency lists (Yomitan .zip files) for npm run dictionary to add
+/dictionaries/

@@ -1,16 +1,25 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { cardsAddedIn, cardsDueIn, formatDayKey } from '../activityCharts.js'
 import { matchesTerms, queryTerms, searchableText } from '../cardSearch.js'
-import { isKanaOnly } from '../kana.js'
+import { isKanaOnly, kanaToRomaji, romajiToKana, checkReadingAnswer } from '../kana.js'
 import {
   deleteFlashcard,
   getFlashcardStats,
+  getReviewsInDays,
+  getSettings,
   listFlashcards,
   logPremadeReview,
   reviewFlashcard,
   updateFlashcard,
 } from '../lib/flashcardsApi.js'
-import { addDays, dayOfWeek } from '../../../shared/practiceDay.js'
-import { pickNextCard, RECENT_BUFFER_SIZE, reviewCard } from '../../../shared/srs.js'
+import { addDays, dayOfWeek, practiceDayKey } from '../../../shared/practiceDay.js'
+import {
+  DEFAULT_RETENTION,
+  pickNextCard,
+  RECENT_BUFFER_SIZE,
+  reviewCard,
+} from '../../../shared/srs.js'
+import ActivityCharts from './ActivityCharts.jsx'
 import PremadeDecks from './PremadeDecks.jsx'
 import './Flashcards.css'
 
@@ -61,6 +70,107 @@ function loadPracticeHotkeys() {
   return DEFAULT_PRACTICE_HOTKEYS
 }
 
+// "konnichiwa" -> "Konnichiwa"
+const capitalize = (text) => text.charAt(0).toUpperCase() + text.slice(1)
+
+// What gets read aloud and romanized. The kana reading is preferred, since
+// speaking kanji directly can pick the wrong pronunciation.
+const pronunciationSource = (card) => card.reading || card.japanese
+
+const speechSupported = () =>
+  typeof window !== 'undefined' &&
+  'speechSynthesis' in window &&
+  typeof window.SpeechSynthesisUtterance !== 'undefined'
+
+// Picks a Japanese voice, preferring a natural-sounding / online one.
+function pickJapaneseVoice() {
+  const voices = window.speechSynthesis.getVoices()
+  const japanese = voices.filter((voice) =>
+    voice.lang.toLowerCase().replace('_', '-').startsWith('ja')
+  )
+  return (
+    japanese.find((voice) => /natural|online|google|kyoko|otoya/i.test(voice.name)) ??
+    japanese.find((voice) => voice.lang.toLowerCase().replace('_', '-') === 'ja-jp') ??
+    japanese[0] ??
+    null
+  )
+}
+
+// Speaks the text in Japanese. Starting a new one stops any still playing, so
+// pressing the button repeatedly just restarts the audio.
+function speakJapanese(text, { onStart, onEnd } = {}) {
+  window.speechSynthesis.cancel()
+
+  const utterance = new window.SpeechSynthesisUtterance(text)
+  utterance.lang = 'ja-JP'
+  utterance.rate = 0.9
+  const voice = pickJapaneseVoice()
+  if (voice) utterance.voice = voice
+  utterance.onstart = () => onStart?.()
+  utterance.onend = () => onEnd?.()
+  utterance.onerror = () => onEnd?.()
+
+  window.speechSynthesis.speak(utterance)
+}
+
+// A button that plays the word's pronunciation. It can be pressed any number
+// of times to replay it.
+function PronunciationButton({ card }) {
+  const [speaking, setSpeaking] = useState(false)
+  const supported = speechSupported()
+  const text = pronunciationSource(card)
+
+  // Voices load asynchronously in some browsers; ask for them early so the
+  // Japanese voice is ready by the first click.
+  useEffect(() => {
+    if (!supported) return
+    window.speechSynthesis.getVoices()
+  }, [supported])
+
+  // Stop playback when the card changes or practice closes.
+  useEffect(() => {
+    if (!supported) return
+    return () => window.speechSynthesis.cancel()
+  }, [supported, card.id])
+
+  function play() {
+    if (!supported || !text) return
+    speakJapanese(text, {
+      onStart: () => setSpeaking(true),
+      onEnd: () => setSpeaking(false),
+    })
+  }
+
+  if (!supported) {
+    return (
+      <button
+        type="button"
+        className="anki-audio-btn"
+        disabled
+        title="Audio isn't supported in this browser"
+      >
+        🔇 Audio unavailable
+      </button>
+    )
+  }
+
+  return (
+    <button
+      type="button"
+      className={`anki-audio-btn${speaking ? ' anki-audio-btn-playing' : ''}`}
+      onClick={play}
+      // Don't take focus on click: a focused button keeps Space and Enter
+      // for itself, so they'd replay the audio instead of flipping or
+      // passing the card. Tabbing to it still works.
+      onMouseDown={(event) => event.preventDefault()}
+      aria-label={`Play pronunciation of ${card.japanese}`}
+      title="Play pronunciation (click again to replay)"
+    >
+      {speaking ? '🔊 Playing…' : '🔊 Play audio'}
+    </button>
+  )
+}
+
 const countDue = (cards, now) =>
   cards.filter((card) => new Date(card.dueAt) <= now).length
 
@@ -101,7 +211,9 @@ function streakNote({ current, longest, practicedToday }) {
 }
 
 // Today's practice and what's coming up, shown above the flashcard list.
-function PracticeStats({ stats }) {
+// onOpenCards(kind, { start, end }) lists the cards behind a heatmap day or
+// chart bar; see the card list page.
+function PracticeStats({ stats, onOpenCards }) {
   const { streak } = stats
   const items = [
     {
@@ -149,24 +261,26 @@ function PracticeStats({ stats }) {
         ))}
       </ul>
 
-      <ReviewHeatmap heatmap={stats.heatmap} />
+      <ReviewHeatmap
+        heatmap={stats.heatmap}
+        onSelectDay={(day) => onOpenCards('reviewed', { start: day, end: day })}
+      />
+
+      <ActivityCharts
+        history={stats.history}
+        today={stats.heatmap.today}
+        onSelectBar={onOpenCards}
+      />
     </section>
   )
 }
 
 const HEATMAP_WEEKS = 53
 
-const formatDayKey = (key) =>
-  new Date(`${key}T00:00:00Z`).toLocaleDateString(undefined, {
-    timeZone: 'UTC',
-    month: 'short',
-    day: 'numeric',
-    year: 'numeric',
-  })
-
 // A year of reviews per day, one column per week (Sunday at the top), like a
-// GitHub contribution graph. Shading is relative to the busiest day.
-function ReviewHeatmap({ heatmap }) {
+// GitHub contribution graph. Shading is relative to the busiest day. Days
+// with reviews are buttons that open that day's reviews.
+function ReviewHeatmap({ heatmap, onSelectDay }) {
   const { today, days } = heatmap
   const first = addDays(today, -((HEATMAP_WEEKS - 1) * 7 + dayOfWeek(today)))
   const keys = []
@@ -184,17 +298,24 @@ function ReviewHeatmap({ heatmap }) {
       <div className="review-heatmap-scroll">
         <div
           className="review-heatmap-grid"
-          role="img"
+          role="group"
           aria-label={`Reviews per day over the past year: ${total} in total`}
         >
           {keys.map((key) => {
             const count = days[key] ?? 0
             const level = count === 0 ? 0 : Math.ceil((count / busiest) * 4)
-            return (
-              <span
+            const className = `review-heatmap-day review-heatmap-level-${level}`
+            const label = `${formatDayKey(key)}: ${count} ${count === 1 ? 'review' : 'reviews'}`
+            return count === 0 ? (
+              <span key={key} className={className} title={label} />
+            ) : (
+              <button
                 key={key}
-                className={`review-heatmap-day review-heatmap-level-${level}`}
-                title={`${formatDayKey(key)}: ${count} ${count === 1 ? 'review' : 'reviews'}`}
+                type="button"
+                className={className}
+                title={label}
+                aria-label={`${label}. Show that day's cards`}
+                onClick={() => onSelectDay(key)}
               />
             )
           })}
@@ -256,6 +377,144 @@ function useVirtualRows(containerRef, itemCount, active) {
   return range
 }
 
+// The edit dialog on the Browse and review day pages
+function RowEditDialog({ editing, editField, onSave, onCancel }) {
+  return (
+    <div className="flashcard-row-edit-backdrop">
+      <form className="flashcard-row-edit-dialog" onSubmit={onSave}>
+        <h2>Edit flashcard</h2>
+        <label>
+          Japanese
+          <input
+            lang="ja"
+            value={editing.japanese}
+            onChange={editField('japanese')}
+            required
+          />
+        </label>
+
+        <label>
+          Reading
+          <input
+            lang="ja"
+            value={editing.reading}
+            onChange={editField('reading')}
+          />
+        </label>
+
+        <label>
+          Definition
+          <textarea
+            rows={4}
+            value={editing.definition}
+            onChange={editField('definition')}
+            required
+          />
+        </label>
+
+        <div className="flashcard-row-edit-actions">
+          <button type="button" onClick={onCancel}>
+            Cancel
+          </button>
+          <button type="submit">Save</button>
+        </div>
+      </form>
+    </div>
+  )
+}
+
+// Groups reviews by card, in the order each card was first reviewed.
+// Reviews whose card isn't in `cards` (premade deck reviews and deleted
+// cards) are only counted.
+function groupReviewsByCard(reviews, cards) {
+  const cardsById = new Map(cards.map((card) => [card.id, card]))
+  const rows = new Map()
+  let unlisted = 0
+
+  for (const review of reviews) {
+    const card = cardsById.get(review.cardId)
+    if (!card) {
+      unlisted += 1
+      continue
+    }
+    if (!rows.has(card.id)) rows.set(card.id, { card, grades: [], timeMs: 0 })
+    const row = rows.get(card.id)
+    row.grades.push(review.grade)
+    row.timeMs += review.durationMs
+  }
+
+  return { rows: [...rows.values()], unlisted }
+}
+
+// "Mar 3, 4:05 PM"
+const formatDateTime = (date) =>
+  new Date(date).toLocaleString(undefined, {
+    month: 'short',
+    day: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit',
+  })
+
+function GradeChips({ grades }) {
+  return (
+    <span className="flashcard-day-grades">
+      {grades.map((grade, index) => {
+        // Anything but a fail counts as a pass, as in practice
+        const passed = grade !== 'fail'
+        return (
+          <span
+            key={index}
+            className={`flashcard-day-grade flashcard-day-grade-${passed ? 'pass' : 'fail'}`}
+          >
+            {passed ? 'Pass' : 'Fail'}
+          </span>
+        )
+      })}
+    </span>
+  )
+}
+
+// The card list page's kinds, opened from the heatmap and the activity
+// charts: the page title, and the table's last two columns before Actions.
+// Each row is { card } plus, for reviewed cards, { grades, timeMs }.
+const CARD_LISTS = {
+  reviewed: {
+    title: 'Reviewed',
+    columns: [
+      {
+        label: 'Grade',
+        hint: 'How you graded it, in order',
+        render: (row) => <GradeChips grades={row.grades} />,
+      },
+      {
+        label: 'Time',
+        hint: 'Total answer time',
+        number: true,
+        render: (row) => formatDuration(row.timeMs),
+      },
+    ],
+  },
+  added: {
+    title: 'Added',
+    columns: [
+      { label: 'Added', render: (row) => formatDateTime(row.card.createdAt) },
+      { label: 'Due', render: (row) => formatDateTime(row.card.dueAt) },
+    ],
+  },
+  due: {
+    title: 'Due',
+    columns: [
+      { label: 'Due', render: (row) => formatDateTime(row.card.dueAt) },
+      {
+        label: 'Reviews',
+        hint: 'Times reviewed',
+        number: true,
+        render: (row) => row.card.stats?.reviews ?? 0,
+      },
+    ],
+  },
+}
+
 export default function Flashcards({ onBack }) {
   const [cards, setCards] = useState([])
   const [loading, setLoading] = useState(true)
@@ -265,6 +524,10 @@ export default function Flashcards({ onBack }) {
   // null when not practicing. currentId is null once nothing is due.
   // deckCards is null for your own cards, or an in-memory array for a premade deck.
   const [practice, setPractice] = useState(null)
+  const [practiceMode, setPracticeMode] = useState('flip')
+  const [typedAnswer, setTypedAnswer] = useState('')
+  const [typedResult, setTypedResult] = useState(null)
+  const typedSubmitted = useRef(false)
   const [practiceFlipped, setPracticeFlipped] = useState(false)
   const [practiceHotkeys, setPracticeHotkeys] = useState(loadPracticeHotkeys)
   const [hotkeySettingsOpen, setHotkeySettingsOpen] = useState(false)
@@ -275,7 +538,14 @@ export default function Flashcards({ onBack }) {
   // The Browse page: the full card table, for editing and removing cards
   const [browsing, setBrowsing] = useState(false)
   const [search, setSearch] = useState('')
+  // The card list page, for a heatmap day or chart bar: null when closed,
+  // otherwise { kind, start, end, reviews, error }. kind is a CARD_LISTS key;
+  // reviews is only loaded for 'reviewed', and null while loading.
+  const [cardList, setCardList] = useState(null)
   const [stats, setStats] = useState(null)
+  // The learner's target recall, from Settings. Only used for local
+  // scheduling and previews; the server reads its own saved copy.
+  const [desiredRetention, setDesiredRetention] = useState(DEFAULT_RETENTION)
   // When the current practice card was shown, to time each answer
   const cardShownAt = useRef(0)
   // Settles once every review sent so far has been saved (or failed)
@@ -326,6 +596,14 @@ export default function Flashcards({ onBack }) {
       .finally(() => {
         if (!cancelled) setLoading(false)
       })
+
+    // Falls back to the default, which only affects the previews and
+    // premade decks; the server schedules your cards with the saved value.
+    getSettings()
+      .then((settings) => {
+        if (!cancelled) setDesiredRetention(settings.desiredRetention)
+      })
+      .catch((err) => console.error('Failed to load settings:', err))
 
     // Stats are a nice-to-have, so a failure just leaves the panel out.
     pendingReviews.current
@@ -400,6 +678,24 @@ export default function Flashcards({ onBack }) {
   const editField = (field) => (event) =>
     setEditing((prev) => ({ ...prev, [field]: event.target.value }))
 
+  // Added and due cards come from the cards already loaded; reviews are
+  // fetched, since a card's reviews aren't kept on the client.
+  function openCardList(kind, { start, end }) {
+    const list = { kind, start, end, reviews: null, error: '' }
+    setCardList(list)
+    if (kind !== 'reviewed') return
+
+    // Only update the page if it's still showing this list
+    const update = (changes) =>
+      setCardList((current) => (current === list ? { ...current, ...changes } : current))
+    getReviewsInDays(start, end)
+      .then(({ reviews }) => update({ reviews }))
+      .catch((err) => {
+        console.error('Failed to load reviews:', err)
+        update({ error: 'Those reviews could not be loaded.' })
+      })
+  }
+
   // Practice your own saved cards.
   function startPractice() {
     const now = new Date()
@@ -411,6 +707,9 @@ export default function Flashcards({ onBack }) {
       ahead: false,
       deckCards: null,
     })
+    setTypedAnswer('')
+    setTypedResult(null)
+    typedSubmitted.current = false
     setPracticeFlipped(false)
     setPracticeSaveError(false)
   }
@@ -425,8 +724,8 @@ export default function Flashcards({ onBack }) {
       id: `premade-${index}-${card.japanese}`,
       dueAt: now.toISOString(),
       intervalDays: 0,
-      ease: 2.5,
-      streak: 0,
+      stability: null,
+      difficulty: null,
       lapses: 0,
       lastReviewedAt: null,
     }))
@@ -439,6 +738,9 @@ export default function Flashcards({ onBack }) {
       ahead: false,
       deckCards,
     })
+    setTypedAnswer('')
+    setTypedResult(null)
+    typedSubmitted.current = false
     setPracticeFlipped(false)
     setPracticeSaveError(false)
   }
@@ -458,6 +760,9 @@ export default function Flashcards({ onBack }) {
           includeNotDue: true,
         })?.id ?? null,
     }))
+    setTypedAnswer('')
+    setTypedResult(null)
+    typedSubmitted.current = false
     setPracticeFlipped(false)
   }
 
@@ -471,7 +776,7 @@ export default function Flashcards({ onBack }) {
 
       const { srsGrade } = PRACTICE_GRADES.find((option) => option.grade === grade)
       const now = new Date()
-      const schedule = reviewCard(card, srsGrade, now)
+      const schedule = reviewCard(card, srsGrade, now, { desiredRetention })
       const nextCards = list.map((candidate) =>
         candidate.id === card.id ? { ...candidate, ...schedule } : candidate
       )
@@ -494,6 +799,9 @@ export default function Flashcards({ onBack }) {
         ahead: practice.ahead,
         deckCards: isDeck ? nextCards : null,
       })
+      setTypedAnswer('')
+      setTypedResult(null)
+      typedSubmitted.current = false
       setPracticeFlipped(false)
 
       // Premade deck cards aren't saved, but each review is logged so deck
@@ -535,7 +843,7 @@ export default function Flashcards({ onBack }) {
           setPracticeSaveError(true)
         })
     },
-    [cards, practice]
+    [cards, desiredRetention, practice]
   )
 
   function exitPractice() {
@@ -582,6 +890,7 @@ export default function Flashcards({ onBack }) {
         return
       }
 
+      if (practiceMode === 'type') return
       const key = event.key.toUpperCase()
 
       if (key === 'D') {
@@ -605,7 +914,8 @@ export default function Flashcards({ onBack }) {
 
       const isSpace = event.key === ' '
       // A button the learner tabbed to gets Space/Enter as a normal press,
-      // instead of it also flipping or passing the card.
+      // instead of it also flipping or passing the card. (This also keeps
+      // the audio button's Space/Enter from flipping the card.)
       if (
         (isSpace || event.key === 'Enter') &&
         event.target instanceof HTMLButtonElement
@@ -646,7 +956,7 @@ export default function Flashcards({ onBack }) {
     hotkeySettingsOpen,
     practice,
     practiceFlipped,
-    practiceHotkeys,
+    practiceHotkeys, practiceMode,
   ])
 
   if (practice !== null) {
@@ -665,6 +975,9 @@ export default function Flashcards({ onBack }) {
     const definitionLines = card
       ? card.definition.split('\n').filter(Boolean)
       : []
+
+    // How the word is pronounced, e.g. こんにちは -> "Konnichiwa"
+    const romaji = card ? kanaToRomaji(pronunciationSource(card)) : ''
 
     return (
       <div className="flashcards-practice-page anki-theme">
@@ -697,8 +1010,36 @@ export default function Flashcards({ onBack }) {
                   >
                     {card.japanese}
                   </span>
+
+                  {/* Romaji, shown with the answer so it doesn't give
+                      the reading away before the card is flipped */}
+                  {practiceFlipped && romaji && (
+                    <span className="anki-romaji">({capitalize(romaji)})</span>
+                  )}
+
+                  {/* Audio, available before and after flipping
+                      and replayable as many times as needed */}
+                  {(practiceMode !== 'type' || practiceFlipped) && <PronunciationButton key={card.id} card={card} />}
                 </div>
 
+                {practiceMode === 'type' && !practiceFlipped && (
+                  <form className="typed-answer" onSubmit={(event) => {
+                    event.preventDefault()
+                    if (event.nativeEvent.isComposing || typedSubmitted.current || !typedAnswer.trim()) return
+                    typedSubmitted.current = true
+                    setTypedResult(checkReadingAnswer(typedAnswer, pronunciationSource(card)))
+                    setPracticeFlipped(true)
+                  }}>
+                    <label htmlFor="reading-answer">Type the kana reading (romaji accepted)</label>
+                    <input id="reading-answer" autoFocus autoComplete="off" spellCheck={false}
+                      onKeyDown={(event) => { if (event.key === 'Enter' && (event.nativeEvent.isComposing || event.keyCode === 229)) event.preventDefault() }} value={typedAnswer} onChange={(event) => setTypedAnswer(event.target.value)} />
+                    <p lang="ja">{romajiToKana(typedAnswer)}</p>
+                    <button type="submit" disabled={!typedAnswer.trim()}>Check answer</button>
+                  </form>
+                )}
+                {practiceMode === 'type' && practiceFlipped && (
+                  <p role="status">{typedResult ? 'Correct' : 'Incorrect'} — Correct reading: <span lang="ja">{pronunciationSource(card)}</span></p>
+                )}
                 {practiceFlipped && (
                   <div className="anki-definition-panel">
                     <span className="anki-definition-label">Definition</span>
@@ -761,13 +1102,17 @@ export default function Flashcards({ onBack }) {
               </button>
             )}
 
-            {practiceFlipped ? (
+            {practiceMode === 'type' ? (
+              practiceFlipped && <button type="button" className="anki-show-answer-btn"
+                onClick={() => gradePractice(typedResult ? 'pass' : 'fail')}>Continue</button>
+            ) : practiceFlipped ? (
               <div className="anki-grade-buttons">
                 {PRACTICE_GRADES.map(({ grade, label, srsGrade }) => (
                   <div className="anki-grade-col" key={grade}>
                     <span className="anki-grade-interval">
                       {formatIntervalPreview(
-                        reviewCard(card, srsGrade, new Date()).intervalDays
+                        reviewCard(card, srsGrade, new Date(), { desiredRetention })
+                          .intervalDays
                       )}
                     </span>
                     <button
@@ -925,6 +1270,128 @@ export default function Flashcards({ onBack }) {
     )
   }
 
+  if (cardList) {
+    const { kind, start, end } = cardList
+    const { title, columns } = CARD_LISTS[kind]
+    const timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone
+    const today = stats?.heatmap.today ?? practiceDayKey(new Date(), timeZone)
+    const loaded = kind !== 'reviewed' || cardList.reviews !== null
+    const { rows, unlisted } =
+      kind === 'reviewed'
+        ? groupReviewsByCard(cardList.reviews ?? [], cards)
+        : {
+            rows: (kind === 'added'
+              ? cardsAddedIn(cards, { start, end }, timeZone)
+              : cardsDueIn(cards, { start, end }, today, timeZone)
+            ).map((card) => ({ card })),
+            unlisted: 0,
+          }
+    const dates =
+      start === end ? formatDayKey(start) : `${formatDayKey(start)} – ${formatDayKey(end)}`
+
+    return (
+      <div className="flashcards-page">
+        <button
+          className="flashcards-back-btn"
+          onClick={() => {
+            setEditing(null)
+            setCardList(null)
+          }}
+        >
+          ← Back to Flashcards
+        </button>
+
+        <div className="flashcards-page-header">
+          <h1>
+            {title} {dates}
+          </h1>
+          {loaded && (
+            <p className="flashcards-count">
+              {rows.length} {rows.length === 1 ? 'card' : 'cards'}
+            </p>
+          )}
+        </div>
+
+        {(cardList.error || error) && (
+          <p className="error-text">{cardList.error || error}</p>
+        )}
+
+        {unlisted > 0 && (
+          <p className="flashcards-count">
+            {unlisted} {unlisted === 1 ? 'review' : 'reviews'} of premade deck or
+            deleted cards {unlisted === 1 ? "isn't" : "aren't"} listed.
+          </p>
+        )}
+
+        {!loaded ? (
+          !cardList.error && <p className="flashcards-empty">Loading reviews…</p>
+        ) : rows.length === 0 ? (
+          unlisted === 0 && <p className="flashcards-empty">No cards here.</p>
+        ) : (
+          <div className="flashcards-table flashcards-list-table">
+            <div className="flashcards-table-header">
+              <span>Japanese</span>
+              <span>Reading</span>
+              <span>Definition</span>
+              {columns.map(({ label, hint }) => (
+                <span key={label} title={hint}>
+                  {label}
+                </span>
+              ))}
+              <span>Actions</span>
+            </div>
+
+            <div className="flashcards-table-scroll">
+              {rows.map((row) => (
+                <div className="flashcards-row" key={row.card.id} style={{ height: ROW_HEIGHT }}>
+                  <span className="flashcards-cell flashcards-cell-word">
+                    <span lang="ja" title={row.card.japanese}>
+                      {row.card.japanese}
+                    </span>
+                  </span>
+                  <span className="flashcards-cell" lang="ja" title={row.card.reading}>
+                    {row.card.reading}
+                  </span>
+                  <span
+                    className="flashcards-cell flashcards-cell-definition"
+                    title={row.card.definition}
+                  >
+                    {row.card.definition.replace(/\n/g, ' ')}
+                  </span>
+                  {columns.map(({ label, number, render }) => (
+                    <span
+                      key={label}
+                      className={`flashcards-cell ${number ? 'flashcards-cell-number' : 'flashcards-cell-due'}`}
+                    >
+                      {render(row)}
+                    </span>
+                  ))}
+                  <span className="flashcards-cell flashcards-row-actions">
+                    <button
+                      className="flashcard-edit-btn"
+                      onClick={() => setEditing({ ...row.card })}
+                    >
+                      Edit
+                    </button>
+                  </span>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {editing && (
+          <RowEditDialog
+            editing={editing}
+            editField={editField}
+            onSave={saveEdit}
+            onCancel={() => setEditing(null)}
+          />
+        )}
+      </div>
+    )
+  }
+
   if (browsing) {
     const visibleCards = browseCards.slice(rowStart, rowEnd)
 
@@ -976,6 +1443,9 @@ export default function Flashcards({ onBack }) {
               <span>Japanese</span>
               <span>Reading</span>
               <span>Definition</span>
+              <span title="How common the word is: its rank in the JPDB frequency list, lower is more common">
+                Freq
+              </span>
               <span>Due</span>
               <span title="Times reviewed">Reviews</span>
               <span title="Share of reviews not failed">Pass</span>
@@ -1026,6 +1496,9 @@ export default function Flashcards({ onBack }) {
                       >
                         {card.definition.replace(/\n/g, ' ')}
                       </span>
+                      <span className="flashcards-cell flashcards-cell-number">
+                        {card.frequency ?? '—'}
+                      </span>
                       <span className="flashcards-cell flashcards-cell-due">
                         {formatDueAt(new Date(card.dueAt))}
                       </span>
@@ -1063,46 +1536,12 @@ export default function Flashcards({ onBack }) {
         )}
 
         {editing && (
-          <div className="flashcard-row-edit-backdrop">
-            <form className="flashcard-row-edit-dialog" onSubmit={saveEdit}>
-              <h2>Edit flashcard</h2>
-              <label>
-                Japanese
-                <input
-                  lang="ja"
-                  value={editing.japanese}
-                  onChange={editField('japanese')}
-                  required
-                />
-              </label>
-
-              <label>
-                Reading
-                <input
-                  lang="ja"
-                  value={editing.reading}
-                  onChange={editField('reading')}
-                />
-              </label>
-
-              <label>
-                Definition
-                <textarea
-                  rows={4}
-                  value={editing.definition}
-                  onChange={editField('definition')}
-                  required
-                />
-              </label>
-
-              <div className="flashcard-row-edit-actions">
-                <button type="button" onClick={() => setEditing(null)}>
-                  Cancel
-                </button>
-                <button type="submit">Save</button>
-              </div>
-            </form>
-          </div>
+          <RowEditDialog
+            editing={editing}
+            editField={editField}
+            onSave={saveEdit}
+            onCancel={() => setEditing(null)}
+          />
         )}
       </div>
     )
@@ -1133,6 +1572,9 @@ export default function Flashcards({ onBack }) {
         )}
       </div>
 
+      <label className="practice-mode">Practice mode <select value={practiceMode} onChange={(event) => setPracticeMode(event.target.value)}>
+        <option value="flip">Flip cards</option><option value="type">Type answer</option>
+      </select></label>
       <div className="flashcards-tabs" role="tablist">
         <button
           className="flashcards-tab"
@@ -1169,7 +1611,7 @@ export default function Flashcards({ onBack }) {
               <p className="flashcards-count">
                 {cards.length} {cards.length === 1 ? 'card' : 'cards'}
               </p>
-              {stats && <PracticeStats stats={stats} />}
+              {stats && <PracticeStats stats={stats} onOpenCards={openCardList} />}
             </>
           )}
         </>

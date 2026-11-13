@@ -83,6 +83,10 @@ add_env_default() {
 
 add_env_default DATABASE_URL '"file:./dev.db"'
 add_env_default PORT "$BACKEND_PORT"
+# The project's shared Google OAuth client ID (public, not a secret); the
+# client's copy is committed in client/.env. Keeps an existing value, so
+# someone using their own client ID isn't overwritten.
+add_env_default GOOGLE_CLIENT_ID '"438904717555-j3g3g835m5cklkm9fmnqv089qodsg31k.apps.googleusercontent.com"'
 # JWT_SECRET signs login sessions, so it's random per machine
 add_env_default JWT_SECRET "\"$(node -e 'console.log(require("crypto").randomBytes(32).toString("hex"))')\""
 
@@ -106,6 +110,18 @@ if ! MIGRATE_OUTPUT="$(npx prisma migrate deploy 2>&1)"; then
   exit 1
 fi
 echo "$MIGRATE_OUTPUT"
+
+# The dictionary is built from a download rather than kept in git, so a
+# fresh clone doesn't have it. Build it once; `npm run dictionary` in
+# server/ updates it to a newer JMdict later. Without it the reader still
+# works, but word lookups only know a short built-in list.
+if [ ! -f "$ROOT_DIR/server/dictionary.db" ]; then
+  echo "Building the dictionary (one-time download of about 18 MB)..."
+  if ! npm run dictionary; then
+    echo "Couldn't build the dictionary. Word lookups will only know a few common words" >&2
+    echo "until you run \`npm run dictionary\` in server/." >&2
+  fi
+fi
 
 echo "Starting backend..."
 ( npm run dev ) &

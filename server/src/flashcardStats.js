@@ -43,8 +43,47 @@ function cardStage(card) {
   return card.intervalDays < MATURE_INTERVAL_DAYS ? 'young' : 'mature'
 }
 
+const increment = (counts, key) => {
+  counts[key] = (counts[key] ?? 0) + 1
+}
+
+// Daily counts over all time, for the activity charts: cards added, reviews,
+// passed (non-fail) reviews, and cards coming due. Overdue cards count as due
+// today. Each is a { "YYYY-MM-DD": count } object with no zero days.
+export function activityHistory({ logs, cards, today, timeZone }) {
+  const added = {}
+  const reviews = {}
+  const passed = {}
+  const due = {}
+
+  for (const log of logs) {
+    const day = practiceDayKey(log.reviewedAt, timeZone)
+    increment(reviews, day)
+    if (log.grade !== 'fail') increment(passed, day)
+  }
+
+  for (const card of cards) {
+    increment(added, practiceDayKey(card.createdAt, timeZone))
+    const dueDay = practiceDayKey(card.dueAt, timeZone)
+    increment(due, dueDay < today ? today : dueDay)
+  }
+
+  return { added, reviews, passed, due }
+}
+
+// The reviews from `logs` that fall on practice days `start` through `end`
+// (inclusive), oldest first.
+export function reviewsInDays(logs, start, end, timeZone) {
+  return logs
+    .filter((log) => {
+      const day = practiceDayKey(log.reviewedAt, timeZone)
+      return day >= start && day <= end
+    })
+    .sort((a, b) => new Date(a.reviewedAt) - new Date(b.reviewedAt))
+}
+
 // logs:  every review, as { reviewedAt, durationMs, grade, intervalDays }
-// cards: every card, as { dueAt, intervalDays, lastReviewedAt }
+// cards: every card, as { createdAt, dueAt, intervalDays, lastReviewedAt }
 export function summarizePractice({ logs, cards, now = new Date(), timeZone }) {
   const today = practiceDayKey(now, timeZone)
   const weekStart = addDays(today, -(WEEK_DAYS - 1))
@@ -99,6 +138,7 @@ export function summarizePractice({ logs, cards, now = new Date(), timeZone }) {
     },
     cards: stages,
     heatmap: { today, days: heatmapDays },
+    history: activityHistory({ logs, cards, today, timeZone }),
   }
 }
 

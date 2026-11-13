@@ -1,4 +1,5 @@
 import ePub from 'epubjs'
+import { scopeChapterStyle } from './chapterStyle.js'
 
 // A chapter's own inline <style> content is copied verbatim (see the note
 // in flattenBook below on why none of these references can resolve here),
@@ -30,7 +31,7 @@ export async function flattenBook(data) {
     const sections = book.spine.spineItems.filter((section) => section.linear !== false)
     const chapters = []
 
-    for (const section of sections) {
+    for (const [index, section] of sections.entries()) {
       const html = await section.render(book.load.bind(book))
       const doc = new DOMParser().parseFromString(html, 'text/html')
 
@@ -54,13 +55,18 @@ export async function flattenBook(data) {
       // is preserved.
       doc.querySelectorAll('link[rel="stylesheet"]').forEach((link) => link.remove())
 
-      const inlineStyle = sanitizeInlineStyle(
-        Array.from(doc.querySelectorAll('style'))
-          .map((style) => style.textContent)
-          .join('\n')
+      const chapterClass = `yomu-chapter-${index}`
+      const inlineStyle = scopeChapterStyle(
+        sanitizeInlineStyle(
+          Array.from(doc.querySelectorAll('style'))
+            .map((style) => style.textContent)
+            .join('\n')
+        ),
+        `.${chapterClass}`
       )
 
       chapters.push({
+        chapterClass,
         inlineStyle,
         bodyHtml: doc.body ? doc.body.innerHTML : '',
       })
@@ -71,7 +77,7 @@ export async function flattenBook(data) {
       .filter(Boolean)
       .join('\n')
     const bodyHtml = chapters
-      .map((chapter) => `<section class="yomu-chapter">${chapter.bodyHtml}</section>`)
+      .map((chapter) => `<section class="yomu-chapter ${chapter.chapterClass}">${chapter.bodyHtml}</section>`)
       .join('\n')
 
     return `<!DOCTYPE html>

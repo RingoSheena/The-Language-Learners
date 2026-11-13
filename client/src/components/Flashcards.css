@@ -121,6 +121,18 @@
   background: var(--border);
 }
 
+button.review-heatmap-day {
+  padding: 0;
+  border: none;
+  cursor: pointer;
+}
+
+button.review-heatmap-day:hover,
+button.review-heatmap-day:focus-visible {
+  outline: 2px solid var(--text-h);
+  outline-offset: 1px;
+}
+
 .review-heatmap-level-1 { background: rgba(42, 122, 75, 0.35); }
 .review-heatmap-level-2 { background: rgba(42, 122, 75, 0.55); }
 .review-heatmap-level-3 { background: rgba(42, 122, 75, 0.8); }
@@ -155,7 +167,7 @@
 .flashcards-table-header,
 .flashcards-row {
   display: grid;
-  grid-template-columns: minmax(110px, 1fr) minmax(80px, 1fr) minmax(160px, 3fr) 120px 64px 52px 64px 150px;
+  grid-template-columns: minmax(110px, 1fr) minmax(80px, 1fr) minmax(160px, 3fr) 56px 120px 64px 52px 64px 150px;
   gap: 12px;
   align-items: center;
   padding: 0 12px;
@@ -474,6 +486,32 @@
 
 .anki-word-answer {
   color: #c084fc;
+}
+
+.anki-romaji {
+  display: block;
+  margin-top: 0.25rem;
+  font-size: 1.1rem;
+  opacity: 0.8;
+}
+
+.anki-audio-btn {
+  margin-top: 0.75rem;
+  padding: 0.4rem 0.9rem;
+  border: 1px solid currentColor;
+  border-radius: 999px;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+}
+
+.anki-audio-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.anki-audio-btn-playing {
+  opacity: 0.7;
 }
 
 .anki-definition-panel {
@@ -814,3 +852,209 @@
   background: #2a7a4b;
   color: white;
 }
+
+/* Activity charts, below the review heatmap */
+
+.activity-charts {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+  gap: 12px;
+  margin-top: 16px;
+}
+
+.activity-chart {
+  margin: 0;
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
+
+.activity-chart-header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.activity-chart-header figcaption {
+  display: flex;
+  flex-direction: column;
+  font-size: 14px;
+}
+
+.activity-chart-summary {
+  color: var(--text);
+  font-size: 12px;
+}
+
+.activity-chart-ranges {
+  display: flex;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  overflow: hidden;
+}
+
+.activity-chart-ranges button {
+  padding: 3px 8px;
+  border: none;
+  background: var(--bg);
+  color: var(--text);
+  font-size: 11px;
+  cursor: pointer;
+}
+
+.activity-chart-ranges button + button {
+  border-left: 1px solid var(--border);
+}
+
+.activity-chart-ranges button[aria-pressed='true'] {
+  background: var(--code-bg);
+  color: var(--text-h);
+  font-weight: 600;
+}
+
+.activity-chart-body {
+  display: flex;
+  gap: 6px;
+  margin-top: 14px;
+}
+
+/* Tick labels, each centered on its gridline; as tall as the plot */
+.activity-chart-y-axis {
+  position: relative;
+  flex-shrink: 0;
+  min-width: 24px;
+  height: 120px;
+  color: var(--text);
+  font-size: 10px;
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+
+.activity-chart-y-axis span {
+  position: absolute;
+  right: 0;
+  transform: translateY(50%);
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.activity-chart-main {
+  flex: 1;
+  min-width: 0;
+}
+
+.activity-chart-plot {
+  border-bottom: 1px solid var(--border);
+  border-left: 1px solid var(--border);
+}
+
+.activity-chart-plot svg {
+  display: block;
+  width: 100%;
+  height: 120px;
+}
+
+.activity-chart-gridline {
+  stroke: var(--border);
+  stroke-width: 1;
+  stroke-dasharray: 3 3;
+}
+
+.activity-chart-bar { fill: #2a7a4b; }
+.activity-chart-bar-added { fill: #4a7fc1; }
+.activity-chart-bar-due { fill: #c1773a; }
+.activity-chart-bar-passed { fill: #7fb88f; background: #7fb88f; }
+.activity-chart-bar-failed { fill: #c9574c; background: #c9574c; }
+
+.activity-chart-legend {
+  display: flex;
+  gap: 12px;
+  margin: 6px 0 0;
+  padding: 0;
+  list-style: none;
+  color: var(--text);
+  font-size: 11px;
+}
+
+.activity-chart-legend li {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.activity-chart-swatch {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  border-radius: 2px;
+}
+
+.activity-chart-bar-group {
+  cursor: pointer;
+  outline: none;
+}
+
+.activity-chart-hit {
+  fill: transparent;
+}
+
+.activity-chart-bar-group:hover .activity-chart-hit,
+.activity-chart-bar-group:focus-visible .activity-chart-hit {
+  fill: var(--code-bg);
+}
+
+.activity-chart-bar-group:hover .activity-chart-bar,
+.activity-chart-bar-group:focus-visible .activity-chart-bar {
+  opacity: 0.75;
+}
+
+.activity-chart-axis {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 4px;
+  color: var(--text);
+  font-size: 10px;
+}
+
+/* The card list page (from the heatmap and activity charts): the Browse
+   table, but only the cards added, reviewed, or due in a range of days */
+
+.flashcards-list-table .flashcards-table-header,
+.flashcards-list-table .flashcards-row {
+  grid-template-columns: minmax(110px, 1fr) minmax(80px, 1fr) minmax(160px, 3fr) 150px 110px 80px;
+}
+
+.flashcards-list-table .flashcards-table-scroll {
+  height: auto;
+  max-height: max(240px, calc(100vh - 240px));
+}
+
+.flashcard-day-grades {
+  display: flex;
+  gap: 4px;
+  overflow: hidden;
+}
+
+.flashcard-day-grade {
+  flex-shrink: 0;
+  padding: 1px 8px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.flashcard-day-grade-pass {
+  background: rgba(42, 122, 75, 0.15);
+  color: #2a7a4b;
+}
+
+.flashcard-day-grade-fail {
+  background: rgba(180, 68, 58, 0.15);
+  color: #b4443a;
+}
+
+.practice-mode { display: flex; align-items: center; gap: 0.75rem; margin: 1rem 0; }
+.typed-answer { display: grid; gap: 0.75rem; width: min(100%, 28rem); margin: 1rem auto; }
+.typed-answer input { font-size: 1.25rem; padding: 0.75rem; }
