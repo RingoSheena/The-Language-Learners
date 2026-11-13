@@ -82,7 +82,7 @@ app.get('/', (req, res) => {
 })
 
 function issueSession(res, user) {
-  const token = jwt.sign({ sub: user.id, email: user.email }, JWT_SECRET, {
+  const token = jwt.sign({ sub: user.id, email: user.email, ver: user.sessionVersion ?? 0 }, JWT_SECRET, {
     expiresIn: '7d',
   })
 
@@ -99,15 +99,28 @@ function issueSession(res, user) {
 // wrong with it (missing, expired, tampered) just leaves req.user unset --
 // requireUser is what turns that into a 401, so routes that don't need
 // a logged-in user can still use this to *optionally* know who's asking.
-function attachUser(req, res, next) {
+// The token's "ver" must also match the account's current sessionVersion,
+// which is bumped to end every existing session at once (tokens issued
+// before sessionVersion existed have no "ver" and count as version 0).
+async function attachUser(req, res, next) {
   const token = req.cookies?.[SESSION_COOKIE]
 
   if (token) {
+    let payload
     try {
-      const payload = jwt.verify(token, JWT_SECRET)
-      req.user = { id: payload.sub, email: payload.email }
+      payload = jwt.verify(token, JWT_SECRET)
     } catch {
       // Invalid or expired token -- treat the same as not logged in.
+    }
+
+    if (payload) {
+      const account = await prisma.user.findUnique({
+        where: { id: payload.sub },
+        select: { sessionVersion: true },
+      })
+      if (account && account.sessionVersion === (payload.ver ?? 0)) {
+        req.user = { id: payload.sub, email: payload.email }
+      }
     }
   }
 
@@ -192,6 +205,15 @@ app.post('/api/login', authLimiter, async (req, res) => {
 
     if (!user) {
       return res.status(401).json({ error: 'Invalid email or password.' })
+    }
+
+    // Accounts created through (or linked to) Google have no password.
+    // Saying so doesn't leak anything new: registering already reveals
+    // whether an email has an account.
+    if (!user.passwordHash && user.googleId) {
+      return res.status(401).json({
+        error: 'This account uses Google sign-in. Use "Continue with Google" instead.',
+      })
     }
 
     const passwordMatch = verifyPassword(password, user.passwordHash)

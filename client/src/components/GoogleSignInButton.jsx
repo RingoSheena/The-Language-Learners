@@ -74,7 +74,9 @@ export default function GoogleSignInButton({ onError }) {
           theme: 'outline',
           size: 'large',
           text: 'continue_with',
-          width: 356,
+          // Google takes a fixed pixel width (200-400), so match the card's
+          // current content width instead of overflowing it on narrow phones
+          width: Math.max(200, Math.min(400, buttonRef.current.clientWidth)),
         });
       })
       .catch((error) => onErrorRef.current?.(error.message));

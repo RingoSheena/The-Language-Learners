@@ -18,6 +18,8 @@ model User {
   // Google's stable id for the account (the ID token's "sub"), set once the
   // user signs in with Google
   googleId     String?  @unique
+  // Stamped into session tokens; incrementing it ends every existing session
+  sessionVersion Int    @default(0)
   createdAt    DateTime @default(now())
   // Flashcard target recall, see shared/srs.js
   desiredRetention Float @default(0.9)

@@ -12,9 +12,15 @@ export async function verifyGoogleToken(idToken, clientId, client = new OAuth2Cl
 
 // Decides which account a verified Google sign-in belongs to:
 //   1. an account already linked to this Google id -> that account
-//   2. otherwise an account with the same email -> link it (Google has
-//      verified the address, so this is the same person) and return it
+//   2. otherwise an account with the same email -> link it and return it
 //   3. otherwise create a new account with no password
+//
+// Linking (2) also removes the account's password and ends its existing
+// sessions. Registration never confirms an email address, so anyone could
+// have registered this address with a password of their choosing, waiting
+// for the real owner to sign in with Google and start using the account.
+// Google has verified the owner, but not whoever set the password, so after
+// linking the account belongs to the Google sign-in alone.
 // Returns null when Google hasn't verified the email: an unverified address
 // could belong to someone else, and linking by email would hand them that
 // person's account.
@@ -38,7 +44,10 @@ export async function resolveGoogleUser(prisma, claims) {
     if (sameEmail.googleId && sameEmail.googleId !== googleId) {
       return null
     }
-    return prisma.user.update({ where: { id: sameEmail.id }, data: { googleId } })
+    return prisma.user.update({
+      where: { id: sameEmail.id },
+      data: { googleId, passwordHash: null, sessionVersion: { increment: 1 } },
+    })
   }
 
   return prisma.user.create({ data: { email, googleId } })
