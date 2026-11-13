@@ -218,19 +218,20 @@ export function pickNextCard(
 }
 
 
+// Random practice: any card not yet passed this session, due or not, in no
+// particular order. Random sessions are drilling only and save nothing, so
+// schedules stay as they are. A failed card stays out of seenIds and comes
+// back later; justShownId keeps it from repeating immediately unless it's
+// the only card left.
 export function pickRandomCard(
   cards,
-  { seenIds = [], random = Math.random } = {}
+  { seenIds = [], justShownId = null, random = Math.random } = {}
 ) {
   const seen = new Set(seenIds)
-  const remaining = cards.filter(
-    (card) => !seen.has(card.id)
-  )
+  const remaining = cards.filter((card) => !seen.has(card.id))
+  const others = remaining.filter((card) => card.id !== justShownId)
+  const pool = others.length > 0 ? others : remaining
 
-  if (remaining.length === 0) return null
-
-  return remaining[
-    Math.floor(random() * remaining.length)
-  ]
+  if (pool.length === 0) return null
+  return pool[Math.floor(random() * pool.length)]
 }
-

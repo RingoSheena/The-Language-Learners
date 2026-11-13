@@ -782,6 +782,26 @@ export default function Flashcards({ onBack }) {
       const card = list.find((candidate) => candidate.id === practice?.currentId)
       if (!card) return
 
+      // Random practice is drilling only: nothing is rescheduled, saved or
+      // counted toward stats. A passed card is done for the session; a
+      // failed one comes back later.
+      if (practice.random) {
+        const seenIds =
+          grade === 'pass' ? [...practice.seenIds, card.id] : practice.seenIds
+        setPractice({
+          ...practice,
+          currentId:
+            pickRandomCard(list, { seenIds, justShownId: card.id })?.id ?? null,
+          seenIds,
+          reviewed: practice.reviewed + 1,
+        })
+        setTypedAnswer('')
+        setTypedResult(null)
+        typedSubmitted.current = false
+        setPracticeFlipped(false)
+        return
+      }
+
       const { srsGrade } = PRACTICE_GRADES.find((option) => option.grade === grade)
       const now = new Date()
       const schedule = reviewCard(card, srsGrade, now, { desiredRetention })
@@ -791,24 +811,19 @@ export default function Flashcards({ onBack }) {
       const recentIds = [...practice.recentIds, card.id].slice(
         -RECENT_BUFFER_SIZE
       )
-      // Random sessions visit each card only once, even after a failed review.
-      const seenIds = practice.random ? [...practice.seenIds, card.id] : []
 
       // Premade decks stay in memory; your own cards are saved as before.
       if (!isDeck) setCards(nextCards)
       setPractice({
-        currentId: (
-          practice.random
-            ? pickRandomCard(nextCards, { seenIds })
-            : pickNextCard(nextCards, {
-                now,
-                recentIds,
-                includeNotDue: practice.ahead,
-              })
-        )?.id ?? null,
+        currentId:
+          pickNextCard(nextCards, {
+            now,
+            recentIds,
+            includeNotDue: practice.ahead,
+          })?.id ?? null,
         recentIds,
-        seenIds,
-        random: practice.random,
+        seenIds: [],
+        random: false,
         reviewed: practice.reviewed + 1,
         dueCount: countDue(nextCards, now),
         ahead: practice.ahead,
@@ -1078,11 +1093,17 @@ export default function Flashcards({ onBack }) {
               <section className="flashcard-practice-done">
                 <h2>{practice.random ? 'Random practice complete' : isDeck ? 'Deck complete' : "You're all caught up"}</h2>
                 <p>
-                  {practice.reviewed === 0
-                    ? (practice.random ? 'No cards available to practice.' : 'No cards are due right now.')
-                    : `You reviewed ${practice.reviewed} ${
-                        practice.reviewed === 1 ? 'card' : 'cards'
-                      }.`}
+                  {practice.random
+                    ? practice.seenIds.length === 0
+                      ? 'No cards available to practice.'
+                      : `You went through ${practice.seenIds.length} ${
+                          practice.seenIds.length === 1 ? 'card' : 'cards'
+                        }. Random practice doesn't change when cards are due.`
+                    : practice.reviewed === 0
+                      ? 'No cards are due right now.'
+                      : `You reviewed ${practice.reviewed} ${
+                          practice.reviewed === 1 ? 'card' : 'cards'
+                        }.`}
                 </p>
                 {!practice.random && nextDueAt && (
                   <p>Next card due {formatDueAt(nextDueAt)}.</p>
@@ -1594,8 +1615,8 @@ export default function Flashcards({ onBack }) {
       <label className="practice-mode">
         Card order
         <select value={practiceOrder} onChange={(event) => setPracticeOrder(event.target.value)}>
-          <option value="scheduled">Scheduled Practice</option>
-          <option value="random">Random Practice</option>
+          <option value="scheduled">Scheduled</option>
+          <option value="random">Random (doesn't change schedule)</option>
         </select>
       </label>
       <div className="flashcards-tabs" role="tablist">

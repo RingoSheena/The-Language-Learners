@@ -1,6 +1,6 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { reviewCard, pickNextCard, DEFAULT_RETENTION } from './srs.js'
+import { reviewCard, pickNextCard, pickRandomCard, DEFAULT_RETENTION } from './srs.js'
 
 const NOW = new Date('2026-01-10T12:00:00Z')
 const DAY = 24 * 60 * 60 * 1000
@@ -221,4 +221,47 @@ test('only-recent due cards fall back to any but the one just shown', () => {
   const cards = [newCard('a'), newCard('b'), newCard('c', { dueAt: new Date(NOW.getTime() + DAY).toISOString() })]
   // a and b are the only due cards and both are recent; a was shown last.
   assert.equal(pickNextCard(cards, { now: NOW, recentIds: ['b', 'a'] }).id, 'b')
+})
+
+const randomCards = [
+  { id: 'a', dueAt: '2030-01-01T00:00:00.000Z' },
+  { id: 'b', dueAt: '2020-01-01T00:00:00.000Z' },
+  { id: 'c', dueAt: '2040-01-01T00:00:00.000Z' },
+]
+
+test('random practice includes cards that are not due yet', () => {
+  assert.equal(pickRandomCard(randomCards, { random: () => 0 }).id, 'a')
+  assert.equal(pickRandomCard(randomCards, { random: () => 0.99 }).id, 'c')
+})
+
+test('random practice never selects previously seen cards', () => {
+  const next = pickRandomCard(randomCards, { seenIds: ['a', 'b'], random: () => 0 })
+  assert.equal(next.id, 'c')
+})
+
+test('a random session visits every card exactly once then ends', () => {
+  const seenIds = []
+  for (let i = 0; i < randomCards.length; i++) {
+    const next = pickRandomCard(randomCards, { seenIds, random: () => 0 })
+    assert.ok(next)
+    assert.ok(!seenIds.includes(next.id))
+    seenIds.push(next.id)
+  }
+  assert.equal(new Set(seenIds).size, randomCards.length)
+  assert.equal(pickRandomCard(randomCards, { seenIds }), null)
+})
+
+test('random practice handles empty decks and does not alter its cards', () => {
+  assert.equal(pickRandomCard([]), null)
+  const original = randomCards.map((card) => ({ ...card }))
+  pickRandomCard(randomCards, { seenIds: ['a'], random: () => 0.5 })
+  assert.deepEqual(randomCards, original)
+})
+
+test('random practice brings a failed card back, but not straight away', () => {
+  // 'a' was just failed, so it isn't in seenIds yet
+  assert.equal(pickRandomCard(randomCards, { justShownId: 'a', random: () => 0 }).id, 'b')
+  // ...unless it's the only card left
+  const next = pickRandomCard(randomCards, { seenIds: ['b', 'c'], justShownId: 'a' })
+  assert.equal(next.id, 'a')
 })
