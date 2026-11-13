@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { cardsAddedIn, cardsDueIn, formatDayKey } from '../activityCharts.js'
 import { matchesTerms, queryTerms, searchableText } from '../cardSearch.js'
-import { isKanaOnly, kanaToRomaji } from '../kana.js'
+import { isKanaOnly, kanaToRomaji, romajiToKana, checkReadingAnswer } from '../kana.js'
 import {
   deleteFlashcard,
   getFlashcardStats,
@@ -524,6 +524,10 @@ export default function Flashcards({ onBack }) {
   // null when not practicing. currentId is null once nothing is due.
   // deckCards is null for your own cards, or an in-memory array for a premade deck.
   const [practice, setPractice] = useState(null)
+  const [practiceMode, setPracticeMode] = useState('flip')
+  const [typedAnswer, setTypedAnswer] = useState('')
+  const [typedResult, setTypedResult] = useState(null)
+  const typedSubmitted = useRef(false)
   const [practiceFlipped, setPracticeFlipped] = useState(false)
   const [practiceHotkeys, setPracticeHotkeys] = useState(loadPracticeHotkeys)
   const [hotkeySettingsOpen, setHotkeySettingsOpen] = useState(false)
@@ -703,6 +707,9 @@ export default function Flashcards({ onBack }) {
       ahead: false,
       deckCards: null,
     })
+    setTypedAnswer('')
+    setTypedResult(null)
+    typedSubmitted.current = false
     setPracticeFlipped(false)
     setPracticeSaveError(false)
   }
@@ -731,6 +738,9 @@ export default function Flashcards({ onBack }) {
       ahead: false,
       deckCards,
     })
+    setTypedAnswer('')
+    setTypedResult(null)
+    typedSubmitted.current = false
     setPracticeFlipped(false)
     setPracticeSaveError(false)
   }
@@ -750,6 +760,9 @@ export default function Flashcards({ onBack }) {
           includeNotDue: true,
         })?.id ?? null,
     }))
+    setTypedAnswer('')
+    setTypedResult(null)
+    typedSubmitted.current = false
     setPracticeFlipped(false)
   }
 
@@ -786,6 +799,9 @@ export default function Flashcards({ onBack }) {
         ahead: practice.ahead,
         deckCards: isDeck ? nextCards : null,
       })
+      setTypedAnswer('')
+      setTypedResult(null)
+      typedSubmitted.current = false
       setPracticeFlipped(false)
 
       // Premade deck cards aren't saved, but each review is logged so deck
@@ -874,6 +890,7 @@ export default function Flashcards({ onBack }) {
         return
       }
 
+      if (practiceMode === 'type') return
       const key = event.key.toUpperCase()
 
       if (key === 'D') {
@@ -939,7 +956,7 @@ export default function Flashcards({ onBack }) {
     hotkeySettingsOpen,
     practice,
     practiceFlipped,
-    practiceHotkeys,
+    practiceHotkeys, practiceMode,
   ])
 
   if (practice !== null) {
@@ -1002,9 +1019,27 @@ export default function Flashcards({ onBack }) {
 
                   {/* Audio, available before and after flipping
                       and replayable as many times as needed */}
-                  <PronunciationButton key={card.id} card={card} />
+                  {(practiceMode !== 'type' || practiceFlipped) && <PronunciationButton key={card.id} card={card} />}
                 </div>
 
+                {practiceMode === 'type' && !practiceFlipped && (
+                  <form className="typed-answer" onSubmit={(event) => {
+                    event.preventDefault()
+                    if (event.nativeEvent.isComposing || typedSubmitted.current || !typedAnswer.trim()) return
+                    typedSubmitted.current = true
+                    setTypedResult(checkReadingAnswer(typedAnswer, pronunciationSource(card)))
+                    setPracticeFlipped(true)
+                  }}>
+                    <label htmlFor="reading-answer">Type the kana reading (romaji accepted)</label>
+                    <input id="reading-answer" autoFocus autoComplete="off" spellCheck={false}
+                      onKeyDown={(event) => { if (event.key === 'Enter' && (event.nativeEvent.isComposing || event.keyCode === 229)) event.preventDefault() }} value={typedAnswer} onChange={(event) => setTypedAnswer(event.target.value)} />
+                    <p lang="ja">{romajiToKana(typedAnswer)}</p>
+                    <button type="submit" disabled={!typedAnswer.trim()}>Check answer</button>
+                  </form>
+                )}
+                {practiceMode === 'type' && practiceFlipped && (
+                  <p role="status">{typedResult ? 'Correct' : 'Incorrect'} — Correct reading: <span lang="ja">{pronunciationSource(card)}</span></p>
+                )}
                 {practiceFlipped && (
                   <div className="anki-definition-panel">
                     <span className="anki-definition-label">Definition</span>
@@ -1067,7 +1102,10 @@ export default function Flashcards({ onBack }) {
               </button>
             )}
 
-            {practiceFlipped ? (
+            {practiceMode === 'type' ? (
+              practiceFlipped && <button type="button" className="anki-show-answer-btn"
+                onClick={() => gradePractice(typedResult ? 'pass' : 'fail')}>Continue</button>
+            ) : practiceFlipped ? (
               <div className="anki-grade-buttons">
                 {PRACTICE_GRADES.map(({ grade, label, srsGrade }) => (
                   <div className="anki-grade-col" key={grade}>
@@ -1534,6 +1572,9 @@ export default function Flashcards({ onBack }) {
         )}
       </div>
 
+      <label className="practice-mode">Practice mode <select value={practiceMode} onChange={(event) => setPracticeMode(event.target.value)}>
+        <option value="flip">Flip cards</option><option value="type">Type answer</option>
+      </select></label>
       <div className="flashcards-tabs" role="tablist">
         <button
           className="flashcards-tab"

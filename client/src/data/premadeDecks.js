@@ -5,6 +5,7 @@ export const DIFFICULTIES = [
 ]
 
 export const CATEGORIES = [
+  { id: 'daily-verbs', label: 'Daily Verbs', description: 'Actions for daily routines, household tasks, and everyday plans.' },
   { id: 'conversation', label: 'Conversation', description: 'Greetings, small talk, and the phrases that keep a chat going.' },
   { id: 'dining', label: 'Dining', description: 'Ordering, paying, and talking about food in restaurants and at home.' },
   { id: 'travel', label: 'Travel', description: 'Getting around, finding lodging, and handling trips from airport to hotel.' },
@@ -14,6 +15,9 @@ export const CATEGORIES = [
 ]
 
 const DECK_DESCRIPTIONS = {
+  'daily-verbs-beginner': 'Essential actions for your morning and evening routine.',
+  'daily-verbs-intermediate': 'Household tasks and practical everyday actions.',
+  'daily-verbs-expert': 'Precise verbs for managing routines and responsibilities.',
   'conversation-beginner': 'Greetings, pronouns, feelings, and the most common everyday verbs and adjectives.',
   'conversation-intermediate': 'Talk about work, hobbies, plans, opinions, and emotions with friends and coworkers.',
   'conversation-expert': 'Social nuance: honne vs. tatemae, politeness, debate, and reading between the lines.',
@@ -37,6 +41,42 @@ const DECK_DESCRIPTIONS = {
 // Each card is [word, reading, definition], written out here rather than
 // looked up at study time, so decks don't depend on the dictionary server.
 const WORDS = {
+  'daily-verbs-beginner': [
+    ['起きる', 'おきる', 'to wake up'], ['寝る', 'ねる', 'to sleep'],
+    ['洗う', 'あらう', 'to wash'], ['磨く', 'みがく', 'to polish; to brush'],
+    ['着る', 'きる', 'to put on clothes'], ['脱ぐ', 'ぬぐ', 'to take off clothes'],
+    ['浴びる', 'あびる', 'to shower; to bathe in'], ['歩く', 'あるく', 'to walk'],
+    ['走る', 'はしる', 'to run'], ['休む', 'やすむ', 'to rest'],
+    ['開ける', 'あける', 'to open'], ['閉める', 'しめる', 'to close'],
+    ['座る', 'すわる', 'to sit'], ['立つ', 'たつ', 'to stand'],
+    ['待つ', 'まつ', 'to wait'], ['持つ', 'もつ', 'to hold'],
+    ['使う', 'つかう', 'to use'], ['買う', 'かう', 'to buy'],
+    ['遊ぶ', 'あそぶ', 'to play'], ['泳ぐ', 'およぐ', 'to swim'],
+  ],
+  'daily-verbs-intermediate': [
+    ['片付ける', 'かたづける', 'to tidy up'], ['掃く', 'はく', 'to sweep'],
+    ['拭く', 'ふく', 'to wipe'], ['干す', 'ほす', 'to dry; to hang out'],
+    ['畳む', 'たたむ', 'to fold'], ['捨てる', 'すてる', 'to throw away'],
+    ['拾う', 'ひろう', 'to pick up'], ['運ぶ', 'はこぶ', 'to carry'],
+    ['沸かす', 'わかす', 'to boil water'], ['冷やす', 'ひやす', 'to chill'],
+    ['温める', 'あたためる', 'to warm up'], ['混ぜる', 'まぜる', 'to mix'],
+    ['切る', 'きる', 'to cut'], ['包む', 'つつむ', 'to wrap'],
+    ['並べる', 'ならべる', 'to arrange in a row'], ['探す', 'さがす', 'to search for'],
+    ['直す', 'なおす', 'to fix'], ['選ぶ', 'えらぶ', 'to choose'],
+    ['借りる', 'かりる', 'to borrow'], ['返す', 'かえす', 'to return something'],
+  ],
+  'daily-verbs-expert': [
+    ['整える', 'ととのえる', 'to put in order'], ['補う', 'おぎなう', 'to replenish; to supplement'],
+    ['省く', 'はぶく', 'to omit; to save'], ['済ませる', 'すませる', 'to finish a task'],
+    ['備える', 'そなえる', 'to prepare for'], ['蓄える', 'たくわえる', 'to store up'],
+    ['賄う', 'まかなう', 'to cover expenses; to provide meals'], ['繕う', 'つくろう', 'to mend'],
+    ['研ぐ', 'とぐ', 'to sharpen; to wash rice'], ['漬ける', 'つける', 'to pickle; to soak'],
+    ['蒸す', 'むす', 'to steam'], ['煮込む', 'にこむ', 'to simmer'],
+    ['裏返す', 'うらがえす', 'to turn inside out'], ['取り替える', 'とりかえる', 'to replace'],
+    ['振り分ける', 'ふりわける', 'to distribute; to sort'], ['見直す', 'みなおす', 'to reconsider; to review'],
+    ['控える', 'ひかえる', 'to refrain; to make a note'], ['長引く', 'ながびく', 'to take longer than expected'],
+    ['切り上げる', 'きりあげる', 'to wrap up early'], ['やり遂げる', 'やりとげる', 'to accomplish'],
+  ],
   'conversation-beginner': [
     ['こんにちは', 'こんにちは', 'hello, good day, good afternoon'],
     ['こんばんは', 'こんばんは', 'good evening'],

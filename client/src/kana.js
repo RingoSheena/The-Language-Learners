@@ -119,3 +119,41 @@ export function kanaToRomaji(text) {
   // Leftover non-ASCII means something (like kanji) wasn't converted
   return /\P{ASCII}/u.test(out) ? '' : out
 }
+
+// Longest-match transliteration preserves unknown input so typos cannot vanish.
+const ROMAJI_KANA = Object.fromEntries(
+  [...Object.entries(KANA_ROMAJI), ...Object.entries(KANA_COMBO_ROMAJI)]
+    .filter(([kana]) => !'ぁぃぅぇぉゃゅょゎゐゑぢづ'.includes(kana))
+    .map(([kana, romaji]) => [romaji, kana])
+)
+Object.assign(ROMAJI_KANA, { shi: 'し', chi: 'ち', tsu: 'つ', ji: 'じ', si: 'し', ti: 'ち', tu: 'つ', hu: 'ふ', zi: 'じ', wo: 'を', nn: 'ん', "n'": 'ん', '-': 'ー' })
+const ROMAJI_KEYS = Object.keys(ROMAJI_KANA).sort((a, b) => b.length - a.length)
+
+export function romajiToKana(text) {
+  const input = String(text ?? '').normalize('NFKC').toLowerCase().trim()
+  let output = ''
+  for (let i = 0; i < input.length;) {
+    const rest = input.slice(i)
+    if (/^nn[aeiouy]/.test(rest)) {
+      output += 'ん'
+      i += 1
+    } else if (/^([bcdfghjkmprstvwxyz])\1/.test(rest)) {
+      output += 'っ'
+      i += 1
+    } else if (/^n(?:$|[^aeiouyn'])/.test(rest)) {
+      output += 'ん'
+      i += 1
+    } else {
+      const key = ROMAJI_KEYS.find((candidate) => rest.startsWith(candidate))
+      output += key ? ROMAJI_KANA[key] : input[i]
+      i += key ? key.length : 1
+    }
+  }
+  return output
+}
+
+export function checkReadingAnswer(answer, reading) {
+  const normalize = (value) => toHiragana(romajiToKana(value)).normalize('NFC')
+  const expected = normalize(reading)
+  return Boolean(expected && isKanaOnly(expected) && normalize(answer) === expected)
+}
