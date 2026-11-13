@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { matchesTerms, queryTerms, searchableText } from '../cardSearch.js'
-import { isKanaOnly } from '../kana.js'
+import { isKanaOnly, kanaToRomaji } from '../kana.js'
 import {
   deleteFlashcard,
   getFlashcardStats,
@@ -65,6 +65,107 @@ function loadPracticeHotkeys() {
   }
 
   return DEFAULT_PRACTICE_HOTKEYS
+}
+
+// "konnichiwa" -> "Konnichiwa"
+const capitalize = (text) => text.charAt(0).toUpperCase() + text.slice(1)
+
+// What gets read aloud and romanized. The kana reading is preferred, since
+// speaking kanji directly can pick the wrong pronunciation.
+const pronunciationSource = (card) => card.reading || card.japanese
+
+const speechSupported = () =>
+  typeof window !== 'undefined' &&
+  'speechSynthesis' in window &&
+  typeof window.SpeechSynthesisUtterance !== 'undefined'
+
+// Picks a Japanese voice, preferring a natural-sounding / online one.
+function pickJapaneseVoice() {
+  const voices = window.speechSynthesis.getVoices()
+  const japanese = voices.filter((voice) =>
+    voice.lang.toLowerCase().replace('_', '-').startsWith('ja')
+  )
+  return (
+    japanese.find((voice) => /natural|online|google|kyoko|otoya/i.test(voice.name)) ??
+    japanese.find((voice) => voice.lang.toLowerCase().replace('_', '-') === 'ja-jp') ??
+    japanese[0] ??
+    null
+  )
+}
+
+// Speaks the text in Japanese. Starting a new one stops any still playing, so
+// pressing the button repeatedly just restarts the audio.
+function speakJapanese(text, { onStart, onEnd } = {}) {
+  window.speechSynthesis.cancel()
+
+  const utterance = new window.SpeechSynthesisUtterance(text)
+  utterance.lang = 'ja-JP'
+  utterance.rate = 0.9
+  const voice = pickJapaneseVoice()
+  if (voice) utterance.voice = voice
+  utterance.onstart = () => onStart?.()
+  utterance.onend = () => onEnd?.()
+  utterance.onerror = () => onEnd?.()
+
+  window.speechSynthesis.speak(utterance)
+}
+
+// A button that plays the word's pronunciation. It can be pressed any number
+// of times to replay it.
+function PronunciationButton({ card }) {
+  const [speaking, setSpeaking] = useState(false)
+  const supported = speechSupported()
+  const text = pronunciationSource(card)
+
+  // Voices load asynchronously in some browsers; ask for them early so the
+  // Japanese voice is ready by the first click.
+  useEffect(() => {
+    if (!supported) return
+    window.speechSynthesis.getVoices()
+  }, [supported])
+
+  // Stop playback when the card changes or practice closes.
+  useEffect(() => {
+    if (!supported) return
+    return () => window.speechSynthesis.cancel()
+  }, [supported, card.id])
+
+  function play() {
+    if (!supported || !text) return
+    speakJapanese(text, {
+      onStart: () => setSpeaking(true),
+      onEnd: () => setSpeaking(false),
+    })
+  }
+
+  if (!supported) {
+    return (
+      <button
+        type="button"
+        className="anki-audio-btn"
+        disabled
+        title="Audio isn't supported in this browser"
+      >
+        🔇 Audio unavailable
+      </button>
+    )
+  }
+
+  return (
+    <button
+      type="button"
+      className={`anki-audio-btn${speaking ? ' anki-audio-btn-playing' : ''}`}
+      onClick={play}
+      // Don't take focus on click: a focused button keeps Space and Enter
+      // for itself, so they'd replay the audio instead of flipping or
+      // passing the card. Tabbing to it still works.
+      onMouseDown={(event) => event.preventDefault()}
+      aria-label={`Play pronunciation of ${card.japanese}`}
+      title="Play pronunciation (click again to replay)"
+    >
+      {speaking ? '🔊 Playing…' : '🔊 Play audio'}
+    </button>
+  )
 }
 
 const countDue = (cards, now) =>
@@ -622,7 +723,8 @@ export default function Flashcards({ onBack }) {
 
       const isSpace = event.key === ' '
       // A button the learner tabbed to gets Space/Enter as a normal press,
-      // instead of it also flipping or passing the card.
+      // instead of it also flipping or passing the card. (This also keeps
+      // the audio button's Space/Enter from flipping the card.)
       if (
         (isSpace || event.key === 'Enter') &&
         event.target instanceof HTMLButtonElement
@@ -683,6 +785,9 @@ export default function Flashcards({ onBack }) {
       ? card.definition.split('\n').filter(Boolean)
       : []
 
+    // How the word is pronounced, e.g. こんにちは -> "Konnichiwa"
+    const romaji = card ? kanaToRomaji(pronunciationSource(card)) : ''
+
     return (
       <div className="flashcards-practice-page anki-theme">
         <div className="anki-counter">
@@ -714,6 +819,16 @@ export default function Flashcards({ onBack }) {
                   >
                     {card.japanese}
                   </span>
+
+                  {/* Romaji, shown with the answer so it doesn't give
+                      the reading away before the card is flipped */}
+                  {practiceFlipped && romaji && (
+                    <span className="anki-romaji">({capitalize(romaji)})</span>
+                  )}
+
+                  {/* Audio, available before and after flipping
+                      and replayable as many times as needed */}
+                  <PronunciationButton key={card.id} card={card} />
                 </div>
 
                 {practiceFlipped && (

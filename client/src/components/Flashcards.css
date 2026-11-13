@@ -476,6 +476,32 @@
   color: #c084fc;
 }
 
+.anki-romaji {
+  display: block;
+  margin-top: 0.25rem;
+  font-size: 1.1rem;
+  opacity: 0.8;
+}
+
+.anki-audio-btn {
+  margin-top: 0.75rem;
+  padding: 0.4rem 0.9rem;
+  border: 1px solid currentColor;
+  border-radius: 999px;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+}
+
+.anki-audio-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.anki-audio-btn-playing {
+  opacity: 0.7;
+}
+
 .anki-definition-panel {
   width: 100%;
   padding: 16px 18px;
