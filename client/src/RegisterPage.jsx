@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
+import GoogleSignInButton from './components/GoogleSignInButton';
 
 export default function RegisterPage() {
   const [email, setEmail] = useState('');
@@ -85,6 +86,8 @@ export default function RegisterPage() {
 
           <button type="submit" className="primary-btn full-width">Register</button>
         </form>
+
+        <GoogleSignInButton onError={setErrorMessage} />
 
         <p className="auth-switch">
           Already have an account?{' '}

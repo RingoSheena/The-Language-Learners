@@ -83,6 +83,10 @@ add_env_default() {
 
 add_env_default DATABASE_URL '"file:./dev.db"'
 add_env_default PORT "$BACKEND_PORT"
+# The project's shared Google OAuth client ID (public, not a secret); the
+# client's copy is committed in client/.env. Keeps an existing value, so
+# someone using their own client ID isn't overwritten.
+add_env_default GOOGLE_CLIENT_ID '"438904717555-j3g3g835m5cklkm9fmnqv089qodsg31k.apps.googleusercontent.com"'
 # JWT_SECRET signs login sessions, so it's random per machine
 add_env_default JWT_SECRET "\"$(node -e 'console.log(require("crypto").randomBytes(32).toString("hex"))')\""
 

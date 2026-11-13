@@ -10,6 +10,7 @@ import { PrismaClient } from './generated/prisma/client.ts'
 import { hashPassword, verifyPassword } from './auth.js'
 import { cardReviewStats, reviewsInDays, summarizePractice } from './flashcardStats.js'
 import { lookupFrequencies, lookupTerms } from './dictionary.js'
+import { resolveGoogleUser, verifyGoogleToken } from './google.js'
 import { cardRank } from './frequency.js'
 import { isValidTimeZone } from '../../shared/practiceDay.js'
 import { GRADES, isValidRetention, reviewCard } from '../../shared/srs.js'
@@ -81,7 +82,7 @@ app.get('/', (req, res) => {
 })
 
 function issueSession(res, user) {
-  const token = jwt.sign({ sub: user.id, email: user.email }, JWT_SECRET, {
+  const token = jwt.sign({ sub: user.id, email: user.email, ver: user.sessionVersion ?? 0 }, JWT_SECRET, {
     expiresIn: '7d',
   })
 
@@ -98,15 +99,28 @@ function issueSession(res, user) {
 // wrong with it (missing, expired, tampered) just leaves req.user unset --
 // requireUser is what turns that into a 401, so routes that don't need
 // a logged-in user can still use this to *optionally* know who's asking.
-function attachUser(req, res, next) {
+// The token's "ver" must also match the account's current sessionVersion,
+// which is bumped to end every existing session at once (tokens issued
+// before sessionVersion existed have no "ver" and count as version 0).
+async function attachUser(req, res, next) {
   const token = req.cookies?.[SESSION_COOKIE]
 
   if (token) {
+    let payload
     try {
-      const payload = jwt.verify(token, JWT_SECRET)
-      req.user = { id: payload.sub, email: payload.email }
+      payload = jwt.verify(token, JWT_SECRET)
     } catch {
       // Invalid or expired token -- treat the same as not logged in.
+    }
+
+    if (payload) {
+      const account = await prisma.user.findUnique({
+        where: { id: payload.sub },
+        select: { sessionVersion: true },
+      })
+      if (account && account.sessionVersion === (payload.ver ?? 0)) {
+        req.user = { id: payload.sub, email: payload.email }
+      }
     }
   }
 
@@ -193,6 +207,15 @@ app.post('/api/login', authLimiter, async (req, res) => {
       return res.status(401).json({ error: 'Invalid email or password.' })
     }
 
+    // Accounts created through (or linked to) Google have no password.
+    // Saying so doesn't leak anything new: registering already reveals
+    // whether an email has an account.
+    if (!user.passwordHash && user.googleId) {
+      return res.status(401).json({
+        error: 'This account uses Google sign-in. Use "Continue with Google" instead.',
+      })
+    }
+
     const passwordMatch = verifyPassword(password, user.passwordHash)
 
     if (!passwordMatch) {
@@ -207,6 +230,49 @@ app.post('/api/login', authLimiter, async (req, res) => {
     })
   } catch (error) {
     console.error('Login Error:', error)
+    res.status(500).json({ error: 'Internal server error' })
+  }
+})
+
+// "Sign in with Google": the browser sends the ID token Google gave it, we
+// verify it with Google's keys, then sign in (or create/link) the matching
+// account and start the same session cookie a password login does.
+app.post('/api/auth/google', authLimiter, async (req, res) => {
+  try {
+    const { GOOGLE_CLIENT_ID } = process.env
+    if (!GOOGLE_CLIENT_ID) {
+      return res.status(501).json({ error: 'Google sign-in is not set up on this server.' })
+    }
+
+    const credential = String(req.body.credential ?? '')
+    if (!credential) {
+      return res.status(400).json({ error: 'Missing Google credential.' })
+    }
+
+    let claims
+    try {
+      claims = await verifyGoogleToken(credential, GOOGLE_CLIENT_ID)
+    } catch (error) {
+      // Bad signature, expired, or issued for a different app
+      console.warn('Rejected Google credential:', error.message)
+      return res.status(401).json({ error: 'Google sign-in failed. Please try again.' })
+    }
+
+    const user = await resolveGoogleUser(prisma, claims)
+    if (!user) {
+      return res.status(403).json({
+        error: 'This Google account could not be used to sign in.',
+      })
+    }
+
+    issueSession(res, user)
+
+    res.status(200).json({
+      message: 'Login successful',
+      user: { id: user.id, email: user.email },
+    })
+  } catch (error) {
+    console.error('Google sign-in error:', error)
     res.status(500).json({ error: 'Internal server error' })
   }
 })
