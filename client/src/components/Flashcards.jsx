@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { matchesTerms, queryTerms, searchableText } from '../cardSearch.js'
-import { isKanaOnly } from '../kana.js'
+import { isKanaOnly, kanaToRomaji } from '../kana.js'
 import {
   deleteFlashcard,
   getFlashcardStats,
@@ -67,131 +67,12 @@ function loadPracticeHotkeys() {
   return DEFAULT_PRACTICE_HOTKEYS
 }
 
-// ---------------------------------------------------------------------------
-// NEW: Romaji (English text pronunciation)
-// ---------------------------------------------------------------------------
-
-// Whole words where the kana spelling differs from how it is pronounced
-// (the particle は is read "wa" here).
-const ROMAJI_EXCEPTIONS = {
-  こんにちは: 'konnichiwa',
-  こんばんは: 'konbanwa',
-}
-
-const KANA_ROMAJI = {
-  あ: 'a', い: 'i', う: 'u', え: 'e', お: 'o',
-  か: 'ka', き: 'ki', く: 'ku', け: 'ke', こ: 'ko',
-  さ: 'sa', し: 'shi', す: 'su', せ: 'se', そ: 'so',
-  た: 'ta', ち: 'chi', つ: 'tsu', て: 'te', と: 'to',
-  な: 'na', に: 'ni', ぬ: 'nu', ね: 'ne', の: 'no',
-  は: 'ha', ひ: 'hi', ふ: 'fu', へ: 'he', ほ: 'ho',
-  ま: 'ma', み: 'mi', む: 'mu', め: 'me', も: 'mo',
-  や: 'ya', ゆ: 'yu', よ: 'yo',
-  ら: 'ra', り: 'ri', る: 'ru', れ: 're', ろ: 'ro',
-  わ: 'wa', ゐ: 'i', ゑ: 'e', を: 'o', ん: 'n',
-  が: 'ga', ぎ: 'gi', ぐ: 'gu', げ: 'ge', ご: 'go',
-  ざ: 'za', じ: 'ji', ず: 'zu', ぜ: 'ze', ぞ: 'zo',
-  だ: 'da', ぢ: 'ji', づ: 'zu', で: 'de', ど: 'do',
-  ば: 'ba', び: 'bi', ぶ: 'bu', べ: 'be', ぼ: 'bo',
-  ぱ: 'pa', ぴ: 'pi', ぷ: 'pu', ぺ: 'pe', ぽ: 'po',
-  ゔ: 'vu',
-  ぁ: 'a', ぃ: 'i', ぅ: 'u', ぇ: 'e', ぉ: 'o',
-  ゃ: 'ya', ゅ: 'yu', ょ: 'yo', ゎ: 'wa',
-}
-
-const KANA_COMBO_ROMAJI = {
-  きゃ: 'kya', きゅ: 'kyu', きょ: 'kyo',
-  しゃ: 'sha', しゅ: 'shu', しぇ: 'she', しょ: 'sho',
-  ちゃ: 'cha', ちゅ: 'chu', ちぇ: 'che', ちょ: 'cho',
-  にゃ: 'nya', にゅ: 'nyu', にょ: 'nyo',
-  ひゃ: 'hya', ひゅ: 'hyu', ひょ: 'hyo',
-  みゃ: 'mya', みゅ: 'myu', みょ: 'myo',
-  りゃ: 'rya', りゅ: 'ryu', りょ: 'ryo',
-  ぎゃ: 'gya', ぎゅ: 'gyu', ぎょ: 'gyo',
-  じゃ: 'ja', じゅ: 'ju', じぇ: 'je', じょ: 'jo',
-  びゃ: 'bya', びゅ: 'byu', びょ: 'byo',
-  ぴゃ: 'pya', ぴゅ: 'pyu', ぴょ: 'pyo',
-  ふぁ: 'fa', ふぃ: 'fi', ふぇ: 'fe', ふぉ: 'fo',
-  てぃ: 'ti', でぃ: 'di',
-  うぃ: 'wi', うぇ: 'we', うぉ: 'wo',
-}
-
-// Katakana to hiragana, so one table covers both.
-function toHiragana(text) {
-  return text.replace(/[\u30A1-\u30F6]/g, (char) =>
-    String.fromCharCode(char.charCodeAt(0) - 0x60)
-  )
-}
-
-// Converts kana to Hepburn romaji. Returns '' when the text contains anything
-// that can't be converted (e.g. kanji with no reading), so nothing wrong is shown.
-function kanaToRomaji(text) {
-  if (!text) return ''
-  const hira = toHiragana(text.trim())
-  if (ROMAJI_EXCEPTIONS[hira]) return ROMAJI_EXCEPTIONS[hira]
-
-  let out = ''
-  let doubleNext = false
-  let lastWasN = false
-  let i = 0
-
-  while (i < hira.length) {
-    const char = hira[i]
-
-    if (char === 'っ') {
-      doubleNext = true
-      i += 1
-      continue
-    }
-
-    if (char === 'ー') {
-      const last = out.slice(-1)
-      if ('aiueo'.includes(last) && last) out += last
-      i += 1
-      continue
-    }
-
-    let romaji
-    const pair = hira.slice(i, i + 2)
-    if (KANA_COMBO_ROMAJI[pair]) {
-      romaji = KANA_COMBO_ROMAJI[pair]
-      i += 2
-    } else if (KANA_ROMAJI[char]) {
-      romaji = KANA_ROMAJI[char]
-      i += 1
-    } else {
-      // Spaces and punctuation pass through; anything else is unsupported.
-      out += char
-      lastWasN = false
-      i += 1
-      continue
-    }
-
-    if (doubleNext) {
-      romaji = romaji.startsWith('ch') ? `t${romaji}` : `${romaji[0]}${romaji}`
-      doubleNext = false
-    }
-    // ん before a vowel or "y" needs an apostrophe: かんい -> kan'i
-    if (lastWasN && /^[aiueoy]/.test(romaji)) out += "'"
-
-    out += romaji
-    lastWasN = char === 'ん'
-  }
-
-  // Leftover non-ASCII means something (like kanji) wasn't converted.
-  return /[^\x00-\x7F]/.test(out) ? '' : out
-}
-
 // "konnichiwa" -> "Konnichiwa"
 const capitalize = (text) => text.charAt(0).toUpperCase() + text.slice(1)
 
 // What gets read aloud and romanized. The kana reading is preferred, since
 // speaking kanji directly can pick the wrong pronunciation.
 const pronunciationSource = (card) => card.reading || card.japanese
-
-// ---------------------------------------------------------------------------
-// NEW: Japanese text-to-speech
-// ---------------------------------------------------------------------------
 
 const speechSupported = () =>
   typeof window !== 'undefined' &&
@@ -275,6 +156,10 @@ function PronunciationButton({ card }) {
       type="button"
       className={`anki-audio-btn${speaking ? ' anki-audio-btn-playing' : ''}`}
       onClick={play}
+      // Don't take focus on click: a focused button keeps Space and Enter
+      // for itself, so they'd replay the audio instead of flipping or
+      // passing the card. Tabbing to it still works.
+      onMouseDown={(event) => event.preventDefault()}
       aria-label={`Play pronunciation of ${card.japanese}`}
       title="Play pronunciation (click again to replay)"
     >
@@ -900,7 +785,7 @@ export default function Flashcards({ onBack }) {
       ? card.definition.split('\n').filter(Boolean)
       : []
 
-    // NEW: English text pronunciation, e.g. こんにちは -> "Konnichiwa"
+    // How the word is pronounced, e.g. こんにちは -> "Konnichiwa"
     const romaji = card ? kanaToRomaji(pronunciationSource(card)) : ''
 
     return (
@@ -935,13 +820,13 @@ export default function Flashcards({ onBack }) {
                     {card.japanese}
                   </span>
 
-                  {/* NEW: romaji, shown with the answer so it doesn't give
+                  {/* Romaji, shown with the answer so it doesn't give
                       the reading away before the card is flipped */}
                   {practiceFlipped && romaji && (
                     <span className="anki-romaji">({capitalize(romaji)})</span>
                   )}
 
-                  {/* NEW: audio button, available before and after flipping
+                  {/* Audio, available before and after flipping
                       and replayable as many times as needed */}
                   <PronunciationButton key={card.id} card={card} />
                 </div>
