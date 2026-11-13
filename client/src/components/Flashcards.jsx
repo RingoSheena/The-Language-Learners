@@ -1,22 +1,25 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { cardsAddedIn, cardsDueIn, formatDayKey } from '../activityCharts.js'
 import { matchesTerms, queryTerms, searchableText } from '../cardSearch.js'
 import { isKanaOnly, kanaToRomaji } from '../kana.js'
 import {
   deleteFlashcard,
   getFlashcardStats,
+  getReviewsInDays,
   getSettings,
   listFlashcards,
   logPremadeReview,
   reviewFlashcard,
   updateFlashcard,
 } from '../lib/flashcardsApi.js'
-import { addDays, dayOfWeek } from '../../../shared/practiceDay.js'
+import { addDays, dayOfWeek, practiceDayKey } from '../../../shared/practiceDay.js'
 import {
   DEFAULT_RETENTION,
   pickNextCard,
   RECENT_BUFFER_SIZE,
   reviewCard,
 } from '../../../shared/srs.js'
+import ActivityCharts from './ActivityCharts.jsx'
 import PremadeDecks from './PremadeDecks.jsx'
 import './Flashcards.css'
 
@@ -208,7 +211,9 @@ function streakNote({ current, longest, practicedToday }) {
 }
 
 // Today's practice and what's coming up, shown above the flashcard list.
-function PracticeStats({ stats }) {
+// onOpenCards(kind, { start, end }) lists the cards behind a heatmap day or
+// chart bar; see the card list page.
+function PracticeStats({ stats, onOpenCards }) {
   const { streak } = stats
   const items = [
     {
@@ -256,24 +261,26 @@ function PracticeStats({ stats }) {
         ))}
       </ul>
 
-      <ReviewHeatmap heatmap={stats.heatmap} />
+      <ReviewHeatmap
+        heatmap={stats.heatmap}
+        onSelectDay={(day) => onOpenCards('reviewed', { start: day, end: day })}
+      />
+
+      <ActivityCharts
+        history={stats.history}
+        today={stats.heatmap.today}
+        onSelectBar={onOpenCards}
+      />
     </section>
   )
 }
 
 const HEATMAP_WEEKS = 53
 
-const formatDayKey = (key) =>
-  new Date(`${key}T00:00:00Z`).toLocaleDateString(undefined, {
-    timeZone: 'UTC',
-    month: 'short',
-    day: 'numeric',
-    year: 'numeric',
-  })
-
 // A year of reviews per day, one column per week (Sunday at the top), like a
-// GitHub contribution graph. Shading is relative to the busiest day.
-function ReviewHeatmap({ heatmap }) {
+// GitHub contribution graph. Shading is relative to the busiest day. Days
+// with reviews are buttons that open that day's reviews.
+function ReviewHeatmap({ heatmap, onSelectDay }) {
   const { today, days } = heatmap
   const first = addDays(today, -((HEATMAP_WEEKS - 1) * 7 + dayOfWeek(today)))
   const keys = []
@@ -291,17 +298,24 @@ function ReviewHeatmap({ heatmap }) {
       <div className="review-heatmap-scroll">
         <div
           className="review-heatmap-grid"
-          role="img"
+          role="group"
           aria-label={`Reviews per day over the past year: ${total} in total`}
         >
           {keys.map((key) => {
             const count = days[key] ?? 0
             const level = count === 0 ? 0 : Math.ceil((count / busiest) * 4)
-            return (
-              <span
+            const className = `review-heatmap-day review-heatmap-level-${level}`
+            const label = `${formatDayKey(key)}: ${count} ${count === 1 ? 'review' : 'reviews'}`
+            return count === 0 ? (
+              <span key={key} className={className} title={label} />
+            ) : (
+              <button
                 key={key}
-                className={`review-heatmap-day review-heatmap-level-${level}`}
-                title={`${formatDayKey(key)}: ${count} ${count === 1 ? 'review' : 'reviews'}`}
+                type="button"
+                className={className}
+                title={label}
+                aria-label={`${label}. Show that day's cards`}
+                onClick={() => onSelectDay(key)}
               />
             )
           })}
@@ -363,6 +377,144 @@ function useVirtualRows(containerRef, itemCount, active) {
   return range
 }
 
+// The edit dialog on the Browse and review day pages
+function RowEditDialog({ editing, editField, onSave, onCancel }) {
+  return (
+    <div className="flashcard-row-edit-backdrop">
+      <form className="flashcard-row-edit-dialog" onSubmit={onSave}>
+        <h2>Edit flashcard</h2>
+        <label>
+          Japanese
+          <input
+            lang="ja"
+            value={editing.japanese}
+            onChange={editField('japanese')}
+            required
+          />
+        </label>
+
+        <label>
+          Reading
+          <input
+            lang="ja"
+            value={editing.reading}
+            onChange={editField('reading')}
+          />
+        </label>
+
+        <label>
+          Definition
+          <textarea
+            rows={4}
+            value={editing.definition}
+            onChange={editField('definition')}
+            required
+          />
+        </label>
+
+        <div className="flashcard-row-edit-actions">
+          <button type="button" onClick={onCancel}>
+            Cancel
+          </button>
+          <button type="submit">Save</button>
+        </div>
+      </form>
+    </div>
+  )
+}
+
+// Groups reviews by card, in the order each card was first reviewed.
+// Reviews whose card isn't in `cards` (premade deck reviews and deleted
+// cards) are only counted.
+function groupReviewsByCard(reviews, cards) {
+  const cardsById = new Map(cards.map((card) => [card.id, card]))
+  const rows = new Map()
+  let unlisted = 0
+
+  for (const review of reviews) {
+    const card = cardsById.get(review.cardId)
+    if (!card) {
+      unlisted += 1
+      continue
+    }
+    if (!rows.has(card.id)) rows.set(card.id, { card, grades: [], timeMs: 0 })
+    const row = rows.get(card.id)
+    row.grades.push(review.grade)
+    row.timeMs += review.durationMs
+  }
+
+  return { rows: [...rows.values()], unlisted }
+}
+
+// "Mar 3, 4:05 PM"
+const formatDateTime = (date) =>
+  new Date(date).toLocaleString(undefined, {
+    month: 'short',
+    day: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit',
+  })
+
+function GradeChips({ grades }) {
+  return (
+    <span className="flashcard-day-grades">
+      {grades.map((grade, index) => {
+        // Anything but a fail counts as a pass, as in practice
+        const passed = grade !== 'fail'
+        return (
+          <span
+            key={index}
+            className={`flashcard-day-grade flashcard-day-grade-${passed ? 'pass' : 'fail'}`}
+          >
+            {passed ? 'Pass' : 'Fail'}
+          </span>
+        )
+      })}
+    </span>
+  )
+}
+
+// The card list page's kinds, opened from the heatmap and the activity
+// charts: the page title, and the table's last two columns before Actions.
+// Each row is { card } plus, for reviewed cards, { grades, timeMs }.
+const CARD_LISTS = {
+  reviewed: {
+    title: 'Reviewed',
+    columns: [
+      {
+        label: 'Grade',
+        hint: 'How you graded it, in order',
+        render: (row) => <GradeChips grades={row.grades} />,
+      },
+      {
+        label: 'Time',
+        hint: 'Total answer time',
+        number: true,
+        render: (row) => formatDuration(row.timeMs),
+      },
+    ],
+  },
+  added: {
+    title: 'Added',
+    columns: [
+      { label: 'Added', render: (row) => formatDateTime(row.card.createdAt) },
+      { label: 'Due', render: (row) => formatDateTime(row.card.dueAt) },
+    ],
+  },
+  due: {
+    title: 'Due',
+    columns: [
+      { label: 'Due', render: (row) => formatDateTime(row.card.dueAt) },
+      {
+        label: 'Reviews',
+        hint: 'Times reviewed',
+        number: true,
+        render: (row) => row.card.stats?.reviews ?? 0,
+      },
+    ],
+  },
+}
+
 export default function Flashcards({ onBack }) {
   const [cards, setCards] = useState([])
   const [loading, setLoading] = useState(true)
@@ -382,6 +534,10 @@ export default function Flashcards({ onBack }) {
   // The Browse page: the full card table, for editing and removing cards
   const [browsing, setBrowsing] = useState(false)
   const [search, setSearch] = useState('')
+  // The card list page, for a heatmap day or chart bar: null when closed,
+  // otherwise { kind, start, end, reviews, error }. kind is a CARD_LISTS key;
+  // reviews is only loaded for 'reviewed', and null while loading.
+  const [cardList, setCardList] = useState(null)
   const [stats, setStats] = useState(null)
   // The learner's target recall, from Settings. Only used for local
   // scheduling and previews; the server reads its own saved copy.
@@ -517,6 +673,24 @@ export default function Flashcards({ onBack }) {
 
   const editField = (field) => (event) =>
     setEditing((prev) => ({ ...prev, [field]: event.target.value }))
+
+  // Added and due cards come from the cards already loaded; reviews are
+  // fetched, since a card's reviews aren't kept on the client.
+  function openCardList(kind, { start, end }) {
+    const list = { kind, start, end, reviews: null, error: '' }
+    setCardList(list)
+    if (kind !== 'reviewed') return
+
+    // Only update the page if it's still showing this list
+    const update = (changes) =>
+      setCardList((current) => (current === list ? { ...current, ...changes } : current))
+    getReviewsInDays(start, end)
+      .then(({ reviews }) => update({ reviews }))
+      .catch((err) => {
+        console.error('Failed to load reviews:', err)
+        update({ error: 'Those reviews could not be loaded.' })
+      })
+  }
 
   // Practice your own saved cards.
   function startPractice() {
@@ -1058,6 +1232,128 @@ export default function Flashcards({ onBack }) {
     )
   }
 
+  if (cardList) {
+    const { kind, start, end } = cardList
+    const { title, columns } = CARD_LISTS[kind]
+    const timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone
+    const today = stats?.heatmap.today ?? practiceDayKey(new Date(), timeZone)
+    const loaded = kind !== 'reviewed' || cardList.reviews !== null
+    const { rows, unlisted } =
+      kind === 'reviewed'
+        ? groupReviewsByCard(cardList.reviews ?? [], cards)
+        : {
+            rows: (kind === 'added'
+              ? cardsAddedIn(cards, { start, end }, timeZone)
+              : cardsDueIn(cards, { start, end }, today, timeZone)
+            ).map((card) => ({ card })),
+            unlisted: 0,
+          }
+    const dates =
+      start === end ? formatDayKey(start) : `${formatDayKey(start)} – ${formatDayKey(end)}`
+
+    return (
+      <div className="flashcards-page">
+        <button
+          className="flashcards-back-btn"
+          onClick={() => {
+            setEditing(null)
+            setCardList(null)
+          }}
+        >
+          ← Back to Flashcards
+        </button>
+
+        <div className="flashcards-page-header">
+          <h1>
+            {title} {dates}
+          </h1>
+          {loaded && (
+            <p className="flashcards-count">
+              {rows.length} {rows.length === 1 ? 'card' : 'cards'}
+            </p>
+          )}
+        </div>
+
+        {(cardList.error || error) && (
+          <p className="error-text">{cardList.error || error}</p>
+        )}
+
+        {unlisted > 0 && (
+          <p className="flashcards-count">
+            {unlisted} {unlisted === 1 ? 'review' : 'reviews'} of premade deck or
+            deleted cards {unlisted === 1 ? "isn't" : "aren't"} listed.
+          </p>
+        )}
+
+        {!loaded ? (
+          !cardList.error && <p className="flashcards-empty">Loading reviews…</p>
+        ) : rows.length === 0 ? (
+          unlisted === 0 && <p className="flashcards-empty">No cards here.</p>
+        ) : (
+          <div className="flashcards-table flashcards-list-table">
+            <div className="flashcards-table-header">
+              <span>Japanese</span>
+              <span>Reading</span>
+              <span>Definition</span>
+              {columns.map(({ label, hint }) => (
+                <span key={label} title={hint}>
+                  {label}
+                </span>
+              ))}
+              <span>Actions</span>
+            </div>
+
+            <div className="flashcards-table-scroll">
+              {rows.map((row) => (
+                <div className="flashcards-row" key={row.card.id} style={{ height: ROW_HEIGHT }}>
+                  <span className="flashcards-cell flashcards-cell-word">
+                    <span lang="ja" title={row.card.japanese}>
+                      {row.card.japanese}
+                    </span>
+                  </span>
+                  <span className="flashcards-cell" lang="ja" title={row.card.reading}>
+                    {row.card.reading}
+                  </span>
+                  <span
+                    className="flashcards-cell flashcards-cell-definition"
+                    title={row.card.definition}
+                  >
+                    {row.card.definition.replace(/\n/g, ' ')}
+                  </span>
+                  {columns.map(({ label, number, render }) => (
+                    <span
+                      key={label}
+                      className={`flashcards-cell ${number ? 'flashcards-cell-number' : 'flashcards-cell-due'}`}
+                    >
+                      {render(row)}
+                    </span>
+                  ))}
+                  <span className="flashcards-cell flashcards-row-actions">
+                    <button
+                      className="flashcard-edit-btn"
+                      onClick={() => setEditing({ ...row.card })}
+                    >
+                      Edit
+                    </button>
+                  </span>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {editing && (
+          <RowEditDialog
+            editing={editing}
+            editField={editField}
+            onSave={saveEdit}
+            onCancel={() => setEditing(null)}
+          />
+        )}
+      </div>
+    )
+  }
+
   if (browsing) {
     const visibleCards = browseCards.slice(rowStart, rowEnd)
 
@@ -1202,46 +1498,12 @@ export default function Flashcards({ onBack }) {
         )}
 
         {editing && (
-          <div className="flashcard-row-edit-backdrop">
-            <form className="flashcard-row-edit-dialog" onSubmit={saveEdit}>
-              <h2>Edit flashcard</h2>
-              <label>
-                Japanese
-                <input
-                  lang="ja"
-                  value={editing.japanese}
-                  onChange={editField('japanese')}
-                  required
-                />
-              </label>
-
-              <label>
-                Reading
-                <input
-                  lang="ja"
-                  value={editing.reading}
-                  onChange={editField('reading')}
-                />
-              </label>
-
-              <label>
-                Definition
-                <textarea
-                  rows={4}
-                  value={editing.definition}
-                  onChange={editField('definition')}
-                  required
-                />
-              </label>
-
-              <div className="flashcard-row-edit-actions">
-                <button type="button" onClick={() => setEditing(null)}>
-                  Cancel
-                </button>
-                <button type="submit">Save</button>
-              </div>
-            </form>
-          </div>
+          <RowEditDialog
+            editing={editing}
+            editField={editField}
+            onSave={saveEdit}
+            onCancel={() => setEditing(null)}
+          />
         )}
       </div>
     )
@@ -1308,7 +1570,7 @@ export default function Flashcards({ onBack }) {
               <p className="flashcards-count">
                 {cards.length} {cards.length === 1 ? 'card' : 'cards'}
               </p>
-              {stats && <PracticeStats stats={stats} />}
+              {stats && <PracticeStats stats={stats} onOpenCards={openCardList} />}
             </>
           )}
         </>

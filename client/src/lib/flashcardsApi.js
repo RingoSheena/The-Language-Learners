@@ -94,12 +94,23 @@ export function logPremadeReview({ grade, durationMs, intervalDays, newIntervalD
   })
 }
 
+const browserTimeZone = () => Intl.DateTimeFormat().resolvedOptions().timeZone
+
 // Practice stats: today, the past week, streak, retention, cards due soon,
-// and a year of daily review counts. Days are the learner's local practice
-// days (see shared/practiceDay.js), so send this browser's time zone.
+// a year of daily review counts, and all-time daily history for the activity
+// charts. Days are the learner's local practice days (see
+// shared/practiceDay.js), so send this browser's time zone.
 export function getFlashcardStats() {
-  const { timeZone } = Intl.DateTimeFormat().resolvedOptions()
-  return request(`/api/flashcards/stats?timeZone=${encodeURIComponent(timeZone)}`)
+  return request(`/api/flashcards/stats?timeZone=${encodeURIComponent(browserTimeZone())}`)
+}
+
+// The reviews on practice days start through end ("YYYY-MM-DD", inclusive,
+// at most 31 days), oldest first, as
+// { start, end, reviews: [{ cardId, grade, reviewedAt, durationMs }] }.
+// cardId is null for premade deck reviews and deleted cards.
+export function getReviewsInDays(start, end) {
+  const params = new URLSearchParams({ start, end, timeZone: browserTimeZone() })
+  return request(`/api/flashcards/reviews?${params}`)
 }
 
 // Account settings that shape flashcard scheduling: { desiredRetention },
