@@ -14,7 +14,7 @@ import {
   uploadBook,
 } from './lib/booksApi.js'
 import { extractCoverImage } from './epubCover.js'
-import { validateEpub } from './epubValidate.js'
+import { validateEpub, validateEpubFile } from './epubValidate.js'
 import { removeLocalReadingState } from './readingState.js'
 
 function BookshelfApp() {
@@ -34,16 +34,14 @@ function BookshelfApp() {
   }, [])
 
   const handleUpload = async (file) => {
-    const isEpub =
-      file.name.toLowerCase().endsWith('.epub') ||
-      file.type === 'application/epub+zip'
+    setUploadError('')
 
-    if (!isEpub) {
-      setUploadError('Please upload a valid .epub file.')
+    try {
+      validateEpubFile(file)
+    } catch (error) {
+      setUploadError(error.message)
       return
     }
-
-    setUploadError('')
 
     try {
       const data = await file.arrayBuffer()
@@ -66,7 +64,11 @@ function BookshelfApp() {
       setBooks((prev) => [...prev, book])
     } catch (error) {
       console.error('Failed to upload book:', error)
-      setUploadError(`Unable to add "${file.name}" to your bookshelf.`)
+      setUploadError(
+        error.status === 400 || error.status === 413
+          ? error.message
+          : `Unable to add "${file.name}" to your bookshelf.`
+      )
     }
   }
 

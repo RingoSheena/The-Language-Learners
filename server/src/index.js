@@ -8,10 +8,12 @@ import multer from 'multer'
 import { PrismaBetterSqlite3 } from '@prisma/adapter-better-sqlite3'
 import { PrismaClient } from './generated/prisma/client.ts'
 import { hashPassword, verifyPassword } from './auth.js'
+import { getEpubUploadProblem } from './bookUpload.js'
 import { cardReviewStats, reviewsInDays, summarizePractice } from './flashcardStats.js'
 import { lookupFrequencies, lookupTerms } from './dictionary.js'
 import { resolveGoogleUser, verifyGoogleToken } from './google.js'
 import { cardRank } from './frequency.js'
+import { EPUB_TOO_LARGE_MESSAGE, MAX_EPUB_SIZE_BYTES } from '../../shared/epubUpload.js'
 import { isValidTimeZone } from '../../shared/practiceDay.js'
 import { GRADES, isValidRetention, reviewCard } from '../../shared/srs.js'
 
@@ -41,11 +43,35 @@ const upload = multer({
   // Japanese titles like 猫.epub.
   defParamCharset: 'utf8',
   limits: {
-    fileSize: 25 * 1024 * 1024,
+    fileSize: MAX_EPUB_SIZE_BYTES,
     // The cover image arrives as a base64 data URL text field
     fieldSize: 10 * 1024 * 1024,
   },
 })
+
+// Translate Multer's upload errors into JSON the bookshelf can display.
+function receiveEpubUpload(req, res, next) {
+  upload.single('book')(req, res, (error) => {
+    if (!error) return next()
+
+    if (error instanceof multer.MulterError) {
+      if (error.code === 'LIMIT_FILE_SIZE') {
+        return res.status(413).json({ error: EPUB_TOO_LARGE_MESSAGE })
+      }
+      // The only text field big enough to hit the limit is the cover image
+      if (error.code === 'LIMIT_FIELD_VALUE') {
+        return res.status(413).json({
+          error: "This EPUB's cover image is too large to upload. Please try another EPUB file.",
+        })
+      }
+      return res.status(400).json({
+        error: 'Unable to process this EPUB upload. Please try again.',
+      })
+    }
+
+    next(error)
+  })
+}
 
 app.use(
   cors({
@@ -347,23 +373,12 @@ const BOOK_FIELDS = {
 app.post(
   '/api/books',
   requireUser,
-  upload.single('book'),
+  receiveEpubUpload,
   async (req, res) => {
     try {
-      if (!req.file) {
-        return res.status(400).json({
-          error: 'Please select an EPUB file.',
-        })
-      }
-
-      const isEpub =
-        req.file.originalname.toLowerCase().endsWith('.epub') ||
-        req.file.mimetype === 'application/epub+zip'
-
-      if (!isEpub) {
-        return res.status(400).json({
-          error: 'Only EPUB files can be uploaded.',
-        })
+      const problem = getEpubUploadProblem(req.file)
+      if (problem) {
+        return res.status(problem.status).json({ error: problem.error })
       }
 
       const title =
