@@ -216,3 +216,22 @@ export function pickNextCard(
   const justShown = recentIds[recentIds.length - 1]
   return choose(due.filter((card) => card.id !== justShown))
 }
+
+
+// Random practice: any card not yet passed this session, due or not, in no
+// particular order. Random sessions are drilling only and save nothing, so
+// schedules stay as they are. A failed card stays out of seenIds and comes
+// back later; justShownId keeps it from repeating immediately unless it's
+// the only card left.
+export function pickRandomCard(
+  cards,
+  { seenIds = [], justShownId = null, random = Math.random } = {}
+) {
+  const seen = new Set(seenIds)
+  const remaining = cards.filter((card) => !seen.has(card.id))
+  const others = remaining.filter((card) => card.id !== justShownId)
+  const pool = others.length > 0 ? others : remaining
+
+  if (pool.length === 0) return null
+  return pool[Math.floor(random() * pool.length)]
+}
