@@ -13,6 +13,7 @@ Japanese Reading & Flashcard Suite
 ## Accounts, books and flashcards
 
 - Learners register and log in with an email and password. Logging in starts a 7-day session, and **Log out** ends it. The bookshelf and flashcards pages send you to the login page if you aren't logged in.
+- The login and register pages also offer **Sign in with Google** (see [Google sign-in](#google-sign-in) for setup). Signing in with a Google account whose email matches an existing password account links the two, so there is one account either way; a new Google email creates an account with no password. Google sign-in only appears once it's configured.
 - Uploaded books and saved flashcards are stored in the server's database under your account, so each learner only sees their own and they follow you to other devices.
 - Flashcards are created from a word's definition popup in the reader. On the **Flashcards** page, **Practice** reviews the cards that are due, and **Browse** opens a table of every card where you can search, edit, or remove them. Search matches the Japanese word, its reading, or the English definition; hiragana and katakana find each other, and width and capitalization don't matter.
 - The **Flashcards** page shows your practice stats: streak (days in a row with at least one review), cards reviewed and time spent today, a 7-day daily average, retention (how often you pass cards you know well), cards due soon, a new/learning/young/mature breakdown, and a year-long heatmap of reviews per day. A day ends at 4am local time, and each answer counts for at most 60 seconds.
@@ -55,10 +56,42 @@ Open http://localhost:5173. Press Ctrl+C to stop both servers.
 The script does all the setup a fresh clone needs, and skips whatever is already done, so run it every time (including after pulling changes):
 
 - installs dependencies in `server/` and `client/` when they're missing, when `package-lock.json` has changed, or when you've switched Node versions
-- creates `server/.env` with a random `JWT_SECRET`, or adds any settings an older `.env` is missing (existing values are kept)
-- generates the Prisma client and applies any new database migrations
+- creates `server/.env` with a random `JWT_SECRET` and the shared Google client ID, or adds any settings an older `.env` is missing (existing values are kept)
+- generates the Prisma client and applies any new database migrations (including the one that adds Google sign-in to the `User` table, which keeps existing accounts)
 - starts the backend (http://localhost:3001) and the frontend, which forwards `/api` requests to the backend
+
+`server/.env` is not committed. The script creates it, including the shared Google client ID. For Google sign-in itself, you also need to be a test user; see [Google sign-in](#google-sign-in).
 
 If Yomu is already running, it stops and tells you instead of starting a second copy. If your local database can't be migrated (for example, it was made with `prisma db push`), it tells you which file to delete to start fresh.
 
 On Windows, run it from Git Bash.
+
+## Google sign-in
+
+Google sign-in uses Google's ID-token flow, so there is no client secret and no redirect URI, only a public **client ID**. The project's shared client ID is already in the repo, so it works out of the box.
+
+### The shared client ID
+
+The project has one Google Cloud OAuth client, and everyone uses it:
+
+- `client/.env` (committed) sets `VITE_GOOGLE_CLIENT_ID` for the frontend.
+- `./start-dev.sh` adds `GOOGLE_CLIENT_ID` to your `server/.env` the first time it runs, if it isn't already there. Existing values are kept.
+
+The client ID is public (it's visible in the page), so keeping it in git is fine. If you already have a `server/.env` from before Google sign-in, just run `./start-dev.sh` again, which adds the line, and restart so Vite and the server pick it up.
+
+The only manual step is being a **test user**: the consent screen is in *Testing* mode, so Google only lets listed accounts sign in (up to 100); anyone else sees "Access blocked". The owner of the Google Cloud project adds you under *Google Cloud Console → APIs & Services → OAuth consent screen → Test users*.
+
+The server checks that every Google token was issued for its `GOOGLE_CLIENT_ID`, so the client and server IDs must match, or sign-in fails with "Google sign-in failed".
+
+### Making your own client ID (to work independently)
+
+1. In [Google Cloud Console](https://console.cloud.google.com), create a project.
+2. *APIs & Services → OAuth consent screen*: choose **External**, enter an app name, and add your Google account as a test user.
+3. *Credentials → Create credentials → OAuth client ID → Web application*. Under **Authorized JavaScript origins**, add both `http://localhost:5173` and `http://localhost` (Google asks for both when testing on localhost; without the second, **Use another account** shows a 400 error). Leave redirect URIs empty.
+4. Put your ID in `server/.env` as `GOOGLE_CLIENT_ID="..."` and in `client/.env.local` as `VITE_GOOGLE_CLIENT_ID="..."` (both gitignored; `.env.local` overrides the committed `client/.env`). Restart `./start-dev.sh`. Don't edit the committed `client/.env` for this.
+
+### Notes
+
+- **The page must be served from an authorized origin.** The client dev server is fixed to port 5173 for this reason. A deployed site's URL must be added to the OAuth client's authorized origins before Google sign-in works there. Google doesn't allow wildcards, so preview deployments with changing URLs can't use it.
+- **Google emails must be verified.** If Google hasn't verified the email on an account, it is refused, so it can't be used to take over someone else's account. An account already linked to one Google account can't be linked to a second.
+- **Accounts created through Google have no password.** Logging in with a password for one of them says "Invalid email or password".

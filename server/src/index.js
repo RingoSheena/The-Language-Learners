@@ -10,6 +10,7 @@ import { PrismaClient } from './generated/prisma/client.ts'
 import { hashPassword, verifyPassword } from './auth.js'
 import { cardReviewStats, summarizePractice } from './flashcardStats.js'
 import { lookupFrequencies, lookupTerms } from './dictionary.js'
+import { resolveGoogleUser, verifyGoogleToken } from './google.js'
 import { cardRank } from './frequency.js'
 import { isValidTimeZone } from '../../shared/practiceDay.js'
 import { GRADES, isValidRetention, reviewCard } from '../../shared/srs.js'
@@ -207,6 +208,49 @@ app.post('/api/login', authLimiter, async (req, res) => {
     })
   } catch (error) {
     console.error('Login Error:', error)
+    res.status(500).json({ error: 'Internal server error' })
+  }
+})
+
+// "Sign in with Google": the browser sends the ID token Google gave it, we
+// verify it with Google's keys, then sign in (or create/link) the matching
+// account and start the same session cookie a password login does.
+app.post('/api/auth/google', authLimiter, async (req, res) => {
+  try {
+    const { GOOGLE_CLIENT_ID } = process.env
+    if (!GOOGLE_CLIENT_ID) {
+      return res.status(501).json({ error: 'Google sign-in is not set up on this server.' })
+    }
+
+    const credential = String(req.body.credential ?? '')
+    if (!credential) {
+      return res.status(400).json({ error: 'Missing Google credential.' })
+    }
+
+    let claims
+    try {
+      claims = await verifyGoogleToken(credential, GOOGLE_CLIENT_ID)
+    } catch (error) {
+      // Bad signature, expired, or issued for a different app
+      console.warn('Rejected Google credential:', error.message)
+      return res.status(401).json({ error: 'Google sign-in failed. Please try again.' })
+    }
+
+    const user = await resolveGoogleUser(prisma, claims)
+    if (!user) {
+      return res.status(403).json({
+        error: 'This Google account could not be used to sign in.',
+      })
+    }
+
+    issueSession(res, user)
+
+    res.status(200).json({
+      message: 'Login successful',
+      user: { id: user.id, email: user.email },
+    })
+  } catch (error) {
+    console.error('Google sign-in error:', error)
     res.status(500).json({ error: 'Internal server error' })
   }
 })
