@@ -216,3 +216,21 @@ export function pickNextCard(
   const justShown = recentIds[recentIds.length - 1]
   return choose(due.filter((card) => card.id !== justShown))
 }
+
+
+export function pickRandomCard(
+  cards,
+  { seenIds = [], random = Math.random } = {}
+) {
+  const seen = new Set(seenIds)
+  const remaining = cards.filter(
+    (card) => !seen.has(card.id)
+  )
+
+  if (remaining.length === 0) return null
+
+  return remaining[
+    Math.floor(random() * remaining.length)
+  ]
+}
+
