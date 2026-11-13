@@ -8,7 +8,7 @@ import multer from 'multer'
 import { PrismaBetterSqlite3 } from '@prisma/adapter-better-sqlite3'
 import { PrismaClient } from './generated/prisma/client.ts'
 import { hashPassword, verifyPassword } from './auth.js'
-import { cardReviewStats, summarizePractice } from './flashcardStats.js'
+import { cardReviewStats, reviewsInDays, summarizePractice } from './flashcardStats.js'
 import { lookupFrequencies, lookupTerms } from './dictionary.js'
 import { cardRank } from './frequency.js'
 import { isValidTimeZone } from '../../shared/practiceDay.js'
@@ -676,7 +676,7 @@ app.get('/api/flashcards/stats', requireUser, async (req, res) => {
       }),
       prisma.flashcard.findMany({
         where: { userId: req.user.id },
-        select: { dueAt: true, intervalDays: true, lastReviewedAt: true },
+        select: { createdAt: true, dueAt: true, intervalDays: true, lastReviewedAt: true },
       }),
     ])
 
@@ -684,6 +684,52 @@ app.get('/api/flashcards/stats', requireUser, async (req, res) => {
   } catch (error) {
     console.error('Unable to load flashcard stats:', error)
     res.status(500).json({ error: 'Your practice stats could not be loaded.' })
+  }
+})
+
+const DAY_KEY_PATTERN = /^\d{4}-\d{2}-\d{2}$/
+const DAY_MS = 24 * 60 * 60 * 1000
+// The longest range one request can cover: an activity chart's widest bar
+const MAX_REVIEW_RANGE_DAYS = 31
+
+const isDayKey = (value) =>
+  typeof value === 'string' && DAY_KEY_PATTERN.test(value) && !Number.isNaN(Date.parse(value))
+
+// The logged-in user's reviews on practice days `start` through `end`
+// (inclusive), oldest first, for the heatmap's day view and the activity
+// charts' bars: ?start=YYYY-MM-DD&end=YYYY-MM-DD&timeZone=<IANA name>.
+// cardId is null for premade deck reviews and deleted cards.
+app.get('/api/flashcards/reviews', requireUser, async (req, res) => {
+  try {
+    const { start, end, timeZone } = req.query
+
+    if (!isValidTimeZone(timeZone)) {
+      return res.status(400).json({ error: 'A valid timeZone is required.' })
+    }
+    if (!isDayKey(start) || !isDayKey(end) || end < start) {
+      return res.status(400).json({ error: 'A start and end day in YYYY-MM-DD form are required.' })
+    }
+
+    const startMs = Date.parse(`${start}T00:00:00Z`)
+    const endMs = Date.parse(`${end}T00:00:00Z`)
+    if ((endMs - startMs) / DAY_MS >= MAX_REVIEW_RANGE_DAYS) {
+      return res.status(400).json({ error: `Ranges can be at most ${MAX_REVIEW_RANGE_DAYS} days.` })
+    }
+
+    // Every time zone's practice days for the range fall within a day either
+    // side of it in UTC; reviewsInDays narrows it down exactly.
+    const logs = await prisma.reviewLog.findMany({
+      where: {
+        userId: req.user.id,
+        reviewedAt: { gte: new Date(startMs - DAY_MS), lt: new Date(endMs + 2 * DAY_MS) },
+      },
+      select: { cardId: true, grade: true, reviewedAt: true, durationMs: true },
+    })
+
+    res.json({ start, end, reviews: reviewsInDays(logs, start, end, timeZone) })
+  } catch (error) {
+    console.error('Unable to load reviews for days:', error)
+    res.status(500).json({ error: 'Those reviews could not be loaded.' })
   }
 })
 

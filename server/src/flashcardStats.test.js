@@ -1,6 +1,12 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { cardReviewStats, computeStreak, summarizePractice } from './flashcardStats.js'
+import {
+  activityHistory,
+  cardReviewStats,
+  computeStreak,
+  reviewsInDays,
+  summarizePractice,
+} from './flashcardStats.js'
 
 const TZ = 'Asia/Tokyo' // UTC+9, no daylight saving
 // Noon on 2026-01-10 in Tokyo
@@ -16,6 +22,7 @@ const review = (day, hour, overrides = {}) => ({
 })
 
 const card = (overrides = {}) => ({
+  createdAt: NOW,
   dueAt: NOW,
   intervalDays: 1,
   lastReviewedAt: NOW,
@@ -106,6 +113,49 @@ test('cards are counted by when they are due and how well they are known', () =>
 
   assert.deepEqual(stats.due, { today: 2, tomorrow: 1, week: 4 })
   assert.deepEqual(stats.cards, { new: 1, learning: 1, young: 1, mature: 2 })
+})
+
+test('activity history counts added, reviewed, passed, and due cards per day', () => {
+  const at = (day, hour) => new Date(Date.UTC(2026, 0, day, hour - 9))
+  const history = activityHistory({
+    logs: [
+      review(9, 12),
+      review(9, 13, { grade: 'fail' }),
+      review(10, 1, { grade: 'easy' }), // before 4am: still the 9th
+      review(10, 12),
+    ],
+    cards: [
+      card({ createdAt: at(1, 12), dueAt: at(2, 12) }), // overdue: due today
+      card({ createdAt: at(1, 20), dueAt: at(10, 18) }),
+      card({ createdAt: at(8, 12), dueAt: at(20, 12) }),
+    ],
+    today: '2026-01-10',
+    timeZone: TZ,
+  })
+
+  assert.deepEqual(history, {
+    added: { '2026-01-01': 2, '2026-01-08': 1 },
+    reviews: { '2026-01-09': 3, '2026-01-10': 1 },
+    passed: { '2026-01-09': 2, '2026-01-10': 1 },
+    due: { '2026-01-10': 2, '2026-01-20': 1 },
+  })
+})
+
+test('reviews in a range of days are those in its local practice days, oldest first', () => {
+  const logs = [
+    review(10, 3, { grade: 'fail' }), // 3am: still the 9th
+    review(9, 12),
+    review(10, 5),
+    review(9, 2), // 2am: the 8th
+  ]
+
+  assert.deepEqual(reviewsInDays(logs, '2026-01-09', '2026-01-09', TZ), [logs[1], logs[0]])
+  assert.deepEqual(reviewsInDays(logs, '2026-01-08', '2026-01-09', TZ), [
+    logs[3],
+    logs[1],
+    logs[0],
+  ])
+  assert.deepEqual(reviewsInDays(logs, '2026-01-07', '2026-01-07', TZ), [])
 })
 
 test('per-card stats give pass rate, average time, and the leech flag', () => {
