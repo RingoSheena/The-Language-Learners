@@ -8,11 +8,12 @@ import multer from 'multer'
 import { PrismaBetterSqlite3 } from '@prisma/adapter-better-sqlite3'
 import { PrismaClient } from './generated/prisma/client.ts'
 import { hashPassword, verifyPassword } from './auth.js'
-import { getEpubUploadProblem, MAX_EPUB_SIZE_BYTES } from './bookUpload.js'
+import { getEpubUploadProblem } from './bookUpload.js'
 import { cardReviewStats, reviewsInDays, summarizePractice } from './flashcardStats.js'
 import { lookupFrequencies, lookupTerms } from './dictionary.js'
 import { resolveGoogleUser, verifyGoogleToken } from './google.js'
 import { cardRank } from './frequency.js'
+import { EPUB_TOO_LARGE_MESSAGE, MAX_EPUB_SIZE_BYTES } from '../../shared/epubUpload.js'
 import { isValidTimeZone } from '../../shared/practiceDay.js'
 import { GRADES, isValidRetention, reviewCard } from '../../shared/srs.js'
 
@@ -54,11 +55,17 @@ function receiveEpubUpload(req, res, next) {
     if (!error) return next()
 
     if (error instanceof multer.MulterError) {
-      const tooLarge = error.code === 'LIMIT_FILE_SIZE'
-      return res.status(tooLarge ? 413 : 400).json({
-        error: tooLarge
-          ? 'This EPUB is too large. Please choose a file smaller than 25 MB.'
-          : 'Unable to process this EPUB upload. Please try again.',
+      if (error.code === 'LIMIT_FILE_SIZE') {
+        return res.status(413).json({ error: EPUB_TOO_LARGE_MESSAGE })
+      }
+      // The only text field big enough to hit the limit is the cover image
+      if (error.code === 'LIMIT_FIELD_VALUE') {
+        return res.status(413).json({
+          error: "This EPUB's cover image is too large to upload. Please try another EPUB file.",
+        })
+      }
+      return res.status(400).json({
+        error: 'Unable to process this EPUB upload. Please try again.',
       })
     }
 

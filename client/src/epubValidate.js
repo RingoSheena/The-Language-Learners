@@ -1,14 +1,13 @@
 import ePub from 'epubjs'
+import { EPUB_TOO_LARGE_MESSAGE, MAX_EPUB_SIZE_BYTES } from '../../shared/epubUpload.js'
 
 // Thrown for a validation failure that already has a message meant for the
 // learner to read, so callers can tell it apart from an unexpected error
 // without relying on matching message text.
 class EpubValidationError extends Error {}
 
-export const MAX_EPUB_SIZE_BYTES = 25 * 1024 * 1024
-
-// Check metadata before loading the entire file into memory. Multer enforces
-// the same size limit on the server for direct API requests.
+// Check metadata before loading the entire file into memory. The server's
+// Multer limit uses the same shared size for direct API requests.
 export function validateEpubFile(file) {
   if (!file) {
     throw new EpubValidationError('Please choose an EPUB file.')
@@ -27,7 +26,7 @@ export function validateEpubFile(file) {
   }
 
   if (file.size > MAX_EPUB_SIZE_BYTES) {
-    throw new EpubValidationError('This EPUB is too large. Please choose a file smaller than 25 MB.')
+    throw new EpubValidationError(EPUB_TOO_LARGE_MESSAGE)
   }
 }
 

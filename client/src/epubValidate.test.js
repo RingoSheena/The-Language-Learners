@@ -1,6 +1,7 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { MAX_EPUB_SIZE_BYTES, validateEpub, validateEpubFile } from './epubValidate.js'
+import { MAX_EPUB_SIZE_BYTES } from '../../shared/epubUpload.js'
+import { validateEpub, validateEpubFile } from './epubValidate.js'
 
 test('rejects missing, unsupported, empty, and oversized EPUB files', () => {
   assert.throws(() => validateEpubFile(null), /choose an EPUB file/i)
