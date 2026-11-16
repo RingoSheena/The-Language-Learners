@@ -359,7 +359,7 @@
 }
 
 .auth-shell .auth-card {
-  width: min(430px, 100%);
+  width: min(23.9rem, 100%);
   background: var(--pl-surface);
   border: 1px solid var(--pl-line);
   border-radius: 1.5rem;
@@ -488,13 +488,15 @@
   min-height: 44px;
 }
 
-/* ---------- Scale up on large screens ---------- */
-
-:root:has(.landing),
-:root:has(.auth-shell) {
-  /* rem-based sizes grow smoothly on wide windows (18px up to ~24px) */
-  font-size: clamp(18px, 0.5vw + 12px, 24px);
+/* Google draws its button at a fixed pixel size, so scale it with the rest of the
+   page (browsers without this kind of calc() just show it at normal size) */
+@supports (zoom: calc(1rem / 18px)) {
+  .auth-shell .google-button {
+    zoom: calc(1rem / 18px);
+  }
 }
+
+/* ---------- Scale up on large screens ---------- */
 
 .landing {
   --pl-max: 1480px;

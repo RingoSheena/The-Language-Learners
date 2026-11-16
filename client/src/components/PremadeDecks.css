@@ -1,12 +1,12 @@
 .flashcards-tabs {
   display: flex;
-  gap: 8px;
-  margin: 12px 0 16px;
+  gap: 0.4444rem;
+  margin: 0.6667rem 0 0.8889rem;
 }
 .flashcards-tab {
-  padding: 8px 16px;
+  padding: 0.4444rem 0.8889rem;
   border: 1px solid var(--border);
-  border-radius: 8px;
+  border-radius: 0.4444rem;
   background: transparent;
   color: var(--text-h);
   cursor: pointer;
@@ -20,13 +20,13 @@
 .premade-filters {
   display: flex;
   flex-wrap: wrap;
-  gap: 16px;
-  margin: 12px 0 20px;
+  gap: 0.8889rem;
+  margin: 0.6667rem 0 1.1111rem;
 }
 .premade-filters label {
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 0.2222rem;
   font-size: 0.9rem;
 }
 
@@ -36,17 +36,17 @@
 }
 .premade-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
-  gap: 16px;
-  margin-bottom: 28px;
+  grid-template-columns: repeat(auto-fill, minmax(13.3333rem, 1fr));
+  gap: 0.8889rem;
+  margin-bottom: 1.5556rem;
 }
 .premade-deck {
   display: flex;
   flex-direction: column;
-  gap: 6px;
-  padding: 16px;
+  gap: 0.3333rem;
+  padding: 0.8889rem;
   border: 1px solid var(--border);
-  border-radius: 12px;
+  border-radius: 0.6667rem;
   background: var(--code-bg);
 }
 .premade-deck h3,
@@ -63,8 +63,8 @@
 }
 .premade-badge {
   align-self: flex-start;
-  padding: 2px 10px;
-  border-radius: 999px;
+  padding: 2px 0.5556rem;
+  border-radius: 55.5rem;
   font-size: 0.75rem;
   font-weight: 600;
   color: #fff;

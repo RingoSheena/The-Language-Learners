@@ -1,12 +1,12 @@
 .flashcards-page {
-  padding: 24px;
+  padding: 1.3333rem;
   color: var(--text-h);
 }
 
 .flashcards-back-btn {
-  padding: 6px 12px;
+  padding: 0.3333rem 0.6667rem;
   border: 1px solid var(--border);
-  border-radius: 6px;
+  border-radius: 0.3333rem;
   background: var(--bg);
   color: var(--text-h);
   cursor: pointer;
@@ -16,8 +16,9 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 16px;
-  margin-top: 12px;
+  flex-wrap: wrap;
+  gap: 0.4444rem 0.8889rem;
+  margin-top: 0.6667rem;
 }
 
 .flashcards-page-header h1 {
@@ -25,34 +26,34 @@
 }
 
 .flashcard-stats-panel {
-  margin: 16px 0 0;
+  margin: 0.8889rem 0 0;
 }
 
 .flashcard-stats {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
-  gap: 8px;
+  grid-template-columns: repeat(auto-fit, minmax(7.2222rem, 1fr));
+  gap: 0.4444rem;
   margin: 0;
 }
 
 .flashcard-stat {
-  padding: 10px 12px;
+  padding: 0.5556rem 0.6667rem;
   border: 1px solid var(--border);
-  border-radius: 8px;
+  border-radius: 0.4444rem;
   background: var(--code-bg);
 }
 
 .flashcard-stat dt {
   color: var(--text);
-  font-size: 11px;
+  font-size: 0.6111rem;
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.5px;
 }
 
 .flashcard-stat dd {
-  margin: 4px 0 0;
-  font-size: 22px;
+  margin: 0.2222rem 0 0;
+  font-size: 1.2222rem;
   font-weight: 600;
   font-variant-numeric: tabular-nums;
 }
@@ -60,19 +61,19 @@
 .flashcard-stat .flashcard-stat-note {
   margin-top: 2px;
   color: var(--text);
-  font-size: 11px;
+  font-size: 0.6111rem;
   font-weight: 400;
 }
 
 .flashcard-stages {
   display: flex;
   flex-wrap: wrap;
-  gap: 4px 16px;
-  margin: 12px 0 0;
+  gap: 0.2222rem 0.8889rem;
+  margin: 0.6667rem 0 0;
   padding: 0;
   list-style: none;
   color: var(--text);
-  font-size: 13px;
+  font-size: 0.7222rem;
 }
 
 .flashcard-stages strong {
@@ -82,9 +83,9 @@
 
 .flashcard-stage-dot {
   display: inline-block;
-  width: 8px;
-  height: 8px;
-  margin-right: 6px;
+  width: 0.4444rem;
+  height: 0.4444rem;
+  margin-right: 0.3333rem;
   border-radius: 50%;
 }
 
@@ -94,13 +95,13 @@
 .flashcard-stage-mature { background: #2a7a4b; }
 
 .review-heatmap {
-  margin: 12px 0 0;
+  margin: 0.6667rem 0 0;
 }
 
 .review-heatmap figcaption {
-  margin-bottom: 6px;
+  margin-bottom: 0.3333rem;
   color: var(--text);
-  font-size: 12px;
+  font-size: 0.6667rem;
 }
 
 .review-heatmap-scroll {
@@ -110,9 +111,9 @@
 .review-heatmap-grid {
   display: grid;
   grid-auto-flow: column;
-  grid-template-rows: repeat(7, 10px);
-  grid-auto-columns: 10px;
-  gap: 3px;
+  grid-template-rows: repeat(7, 0.5556rem);
+  grid-auto-columns: 0.5556rem;
+  gap: 0.1667rem;
   width: max-content;
 }
 
@@ -141,44 +142,44 @@ button.review-heatmap-day:focus-visible {
 .flashcards-search {
   box-sizing: border-box;
   width: 100%;
-  max-width: 480px;
-  margin: 4px 0 12px;
-  padding: 8px 12px;
+  max-width: 26.6667rem;
+  margin: 0.2222rem 0 0.6667rem;
+  padding: 0.4444rem 0.6667rem;
   border: 1px solid var(--border);
-  border-radius: 6px;
+  border-radius: 0.3333rem;
   background: var(--bg);
   color: var(--text-h);
   font: inherit;
-  font-size: 14px;
+  font-size: 0.7778rem;
 }
 
 .flashcards-count {
-  margin: 10px 0;
+  margin: 0.5556rem 0;
   color: var(--text);
-  font-size: 13px;
+  font-size: 0.7222rem;
 }
 
 .flashcards-table {
   border: 1px solid var(--border);
-  border-radius: 8px;
+  border-radius: 0.4444rem;
   overflow: hidden;
 }
 
 .flashcards-table-header,
 .flashcards-row {
   display: grid;
-  grid-template-columns: minmax(110px, 1fr) minmax(80px, 1fr) minmax(160px, 3fr) 56px 120px 64px 52px 64px 150px;
-  gap: 12px;
+  grid-template-columns: minmax(6.1111rem, 1fr) minmax(4.4444rem, 1fr) minmax(8.8889rem, 3fr) 3.1111rem 6.6667rem 3.5556rem 2.8889rem 3.5556rem 8.3333rem;
+  gap: 0.6667rem;
   align-items: center;
-  padding: 0 12px;
+  padding: 0 0.6667rem;
 }
 
 .flashcards-table-header {
-  height: 34px;
+  height: 1.8889rem;
   border-bottom: 1px solid var(--border);
   background: var(--code-bg);
   color: var(--text);
-  font-size: 11px;
+  font-size: 0.6111rem;
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.5px;
@@ -187,7 +188,7 @@ button.review-heatmap-day:focus-visible {
 .flashcards-table-scroll {
   /* The table has the Browse page to itself, so fill the window below the
      header and search box */
-  height: max(240px, calc(100vh - 240px));
+  height: max(13.3333rem, calc(100vh - 13.3333rem));
   overflow-y: auto;
 }
 
@@ -205,7 +206,7 @@ button.review-heatmap-day:focus-visible {
 
 .flashcards-row {
   border-bottom: 1px solid var(--border);
-  font-size: 13px;
+  font-size: 0.7222rem;
 }
 
 .flashcards-row:last-child {
@@ -226,7 +227,7 @@ button.review-heatmap-day:focus-visible {
 .flashcards-cell-word {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 0.3333rem;
 }
 
 .flashcards-cell-word > span {
@@ -236,18 +237,18 @@ button.review-heatmap-day:focus-visible {
 
 .flashcards-cell-number {
   color: var(--text);
-  font-size: 12px;
+  font-size: 0.6667rem;
   font-variant-numeric: tabular-nums;
 }
 
 .flashcard-leech-badge {
   flex-shrink: 0;
-  padding: 1px 6px;
+  padding: 1px 0.3333rem;
   border: 1px solid #b4443a;
-  border-radius: 999px;
+  border-radius: 55.5rem;
   background: transparent;
   color: #b4443a;
-  font-size: 10px;
+  font-size: 0.5556rem;
   font-weight: 600;
   cursor: pointer;
 }
@@ -259,23 +260,23 @@ button.review-heatmap-day:focus-visible {
 
 .flashcards-cell-due {
   color: var(--text);
-  font-size: 12px;
+  font-size: 0.6667rem;
 }
 
 .flashcards-row-actions {
   display: flex;
-  gap: 6px;
+  gap: 0.3333rem;
   overflow: visible;
 }
 
 .flashcard-remove {
-  padding: 4px 10px;
+  padding: 0.2222rem 0.5556rem;
   border: 1px solid #d33;
-  border-radius: 6px;
+  border-radius: 0.3333rem;
   background: white;
   color: #c22;
   cursor: pointer;
-  font-size: 12px;
+  font-size: 0.6667rem;
 }
 
 .flashcard-remove:hover {
@@ -284,18 +285,18 @@ button.review-heatmap-day:focus-visible {
 }
 
 .flashcards-empty {
-  margin-top: 24px;
+  margin-top: 1.3333rem;
   color: #777;
 }
 
 .flashcard-edit-btn {
-  padding: 4px 10px;
+  padding: 0.2222rem 0.5556rem;
   border: 1px solid #bbb;
-  border-radius: 6px;
+  border-radius: 0.3333rem;
   background: white;
   color: #222;
   cursor: pointer;
-  font-size: 12px;
+  font-size: 0.6667rem;
 }
 
 .flashcard-edit-btn:hover {
@@ -313,54 +314,54 @@ button.review-heatmap-day:focus-visible {
 }
 
 .flashcard-row-edit-dialog {
-  width: min(100% - 32px, 420px);
+  width: min(100% - 1.7778rem, 23.3333rem);
   display: flex;
   flex-direction: column;
-  gap: 12px;
-  padding: 20px;
-  border-radius: 10px;
+  gap: 0.6667rem;
+  padding: 1.1111rem;
+  border-radius: 0.5556rem;
   background: var(--bg);
   color: var(--text-h);
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.2);
+  box-shadow: 0 0.4444rem 1.3333rem rgba(0, 0, 0, 0.2);
 }
 
 .flashcard-row-edit-dialog h2 {
   margin: 0;
-  font-size: 18px;
+  font-size: 1rem;
 }
 
 .flashcard-row-edit-dialog label {
   display: flex;
   flex-direction: column;
-  gap: 4px;
-  font-size: 12px;
+  gap: 0.2222rem;
+  font-size: 0.6667rem;
   color: var(--text);
 }
 
 .flashcard-row-edit-dialog input,
 .flashcard-row-edit-dialog textarea {
-  padding: 8px 10px;
+  padding: 0.4444rem 0.5556rem;
   border: 1px solid var(--border);
-  border-radius: 6px;
+  border-radius: 0.3333rem;
   background: var(--bg);
   color: var(--text-h);
   font: inherit;
-  font-size: 14px;
+  font-size: 0.7778rem;
 }
 
 .flashcard-row-edit-actions {
   display: flex;
   justify-content: flex-end;
-  gap: 8px;
-  margin-top: 4px;
+  gap: 0.4444rem;
+  margin-top: 0.2222rem;
 }
 
 .flashcard-row-edit-actions button {
-  padding: 8px 16px;
+  padding: 0.4444rem 0.8889rem;
   border: none;
-  border-radius: 6px;
+  border-radius: 0.3333rem;
   cursor: pointer;
-  font-size: 13px;
+  font-size: 0.7222rem;
 }
 
 .flashcard-row-edit-actions button[type='submit'] {
@@ -377,24 +378,25 @@ button.review-heatmap-day:focus-visible {
 
 .flashcards-header-actions {
   display: flex;
-  gap: 8px;
+  flex-wrap: wrap;
+  gap: 0.4444rem;
 }
 
 .flashcard-browse-start {
-  margin-top: 8px;
-  padding: 8px 16px;
+  margin-top: 0.4444rem;
+  padding: 0.4444rem 0.8889rem;
   border: 1px solid var(--border);
-  border-radius: 6px;
+  border-radius: 0.3333rem;
   background: var(--bg);
   color: var(--text-h);
   cursor: pointer;
 }
 
 .flashcard-practice-start {
-  margin-top: 8px;
-  padding: 8px 16px;
+  margin-top: 0.4444rem;
+  padding: 0.4444rem 0.8889rem;
   border: 1px solid #2a7a4b;
-  border-radius: 6px;
+  border-radius: 0.3333rem;
   background: #2a7a4b;
   color: white;
   cursor: pointer;
@@ -410,18 +412,18 @@ button.review-heatmap-day:focus-visible {
 
 .anki-counter {
   position: absolute;
-  top: 16px;
-  right: 20px;
+  top: 0.8889rem;
+  right: 1.1111rem;
   z-index: 2;
   display: flex;
   align-items: center;
-  gap: 4px;
+  gap: 0.2222rem;
   color: #999;
-  font-size: 14px;
+  font-size: 0.7778rem;
 }
 
 .anki-counter-caret {
-  font-size: 10px;
+  font-size: 0.5556rem;
 }
 
 .flashcards-practice {
@@ -443,8 +445,8 @@ button.review-heatmap-day:focus-visible {
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 16px;
-  padding: 48px 16px;
+  gap: 0.8889rem;
+  padding: 2.6667rem 0.8889rem;
   overflow: auto;
 }
 
@@ -456,29 +458,29 @@ button.review-heatmap-day:focus-visible {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 16px;
-  width: min(100%, 560px);
+  gap: 0.8889rem;
+  width: min(100%, 31.1111rem);
 }
 
 .anki-word-panel {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 3px;
+  gap: 0.1667rem;
   width: 100%;
-  padding: 28px 24px;
+  padding: 1.5556rem 1.3333rem;
   box-sizing: border-box;
 }
 
 .anki-reading {
   color: #d8b4fe;
-  font-size: 18px;
+  font-size: 1rem;
   letter-spacing: 1px;
 }
 
 .anki-word {
   color: #eee;
-  font-size: clamp(40px, 8vw, 72px);
+  font-size: clamp(2.2222rem, 8vw, 4rem);
   line-height: 1.3;
   font-weight: 400;
   overflow-wrap: anywhere;
@@ -499,7 +501,7 @@ button.review-heatmap-day:focus-visible {
   margin-top: 0.75rem;
   padding: 0.4rem 0.9rem;
   border: 1px solid currentColor;
-  border-radius: 999px;
+  border-radius: 55.5rem;
   background: transparent;
   color: inherit;
   cursor: pointer;
@@ -516,26 +518,26 @@ button.review-heatmap-day:focus-visible {
 
 .anki-definition-panel {
   width: 100%;
-  padding: 16px 18px;
-  border-left: 4px solid #eee;
-  border-radius: 6px;
+  padding: 0.8889rem 1rem;
+  border-left: 0.2222rem solid #eee;
+  border-radius: 0.3333rem;
   background: #242424;
   text-align: left;
 }
 
 .anki-definition-label {
   display: block;
-  margin-bottom: 8px;
+  margin-bottom: 0.4444rem;
   color: #888;
-  font-size: 12px;
+  font-size: 0.6667rem;
   text-transform: uppercase;
   letter-spacing: 1px;
 }
 
 .anki-definition-line {
-  margin: 0 0 6px;
+  margin: 0 0 0.3333rem;
   color: #eee;
-  font-size: 16px;
+  font-size: 0.8889rem;
   line-height: 1.5;
   overflow-wrap: anywhere;
 }
@@ -554,7 +556,7 @@ button.review-heatmap-day:focus-visible {
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 8px;
+  gap: 0.4444rem;
   text-align: center;
   color: #eee;
 }
@@ -567,21 +569,21 @@ button.review-heatmap-day:focus-visible {
   display: grid;
   grid-template-columns: 1fr auto 1fr;
   align-items: center;
-  gap: 10px;
-  padding: 4px 14px;
+  gap: 0.5556rem;
+  padding: 0.2222rem 0.7778rem;
   border-top: 1px solid #333;
   background: #242424;
 }
 
 .anki-edit-btn,
 .anki-more-btn {
-  padding: 5px 12px;
+  padding: 0.2778rem 0.6667rem;
   border: none;
-  border-radius: 999px;
+  border-radius: 55.5rem;
   background: #2c2c2c;
   color: #eee;
   cursor: pointer;
-  font-size: 12px;
+  font-size: 0.6667rem;
 }
 
 .anki-edit-btn:hover,
@@ -591,7 +593,7 @@ button.review-heatmap-day:focus-visible {
 
 .anki-grade-buttons {
   display: flex;
-  gap: 6px;
+  gap: 0.3333rem;
   flex-wrap: wrap;
   justify-content: center;
 }
@@ -605,18 +607,18 @@ button.review-heatmap-day:focus-visible {
 
 .anki-grade-interval {
   color: #888;
-  font-size: 10px;
+  font-size: 0.5556rem;
   line-height: 1.3;
 }
 
 .anki-grade-btn {
-  min-width: 96px;
-  padding: 4px 14px;
+  min-width: 5.3333rem;
+  padding: 0.2222rem 0.7778rem;
   border: none;
-  border-radius: 999px;
+  border-radius: 55.5rem;
   background: #2c2c2c;
   cursor: pointer;
-  font-size: 12px;
+  font-size: 0.6667rem;
   font-weight: 600;
 }
 
@@ -633,14 +635,14 @@ button.review-heatmap-day:focus-visible {
 }
 
 .anki-show-answer-btn {
-  min-width: 160px;
-  padding: 4px 20px;
+  min-width: 8.8889rem;
+  padding: 0.2222rem 1.1111rem;
   border: none;
-  border-radius: 999px;
+  border-radius: 55.5rem;
   background: #2c2c2c;
   color: #eee;
   cursor: pointer;
-  font-size: 13px;
+  font-size: 0.7222rem;
   font-weight: 600;
 }
 
@@ -675,26 +677,26 @@ button.review-heatmap-day:focus-visible {
 
 .anki-more-dropdown {
   position: absolute;
-  bottom: calc(100% + 8px);
+  bottom: calc(100% + 0.4444rem);
   right: 0;
   z-index: 4;
   display: flex;
   flex-direction: column;
-  min-width: 160px;
+  min-width: 8.8889rem;
   border: 1px solid #3a3a3a;
-  border-radius: 8px;
+  border-radius: 0.4444rem;
   background: #242424;
   overflow: hidden;
 }
 
 .anki-more-dropdown button {
-  padding: 10px 14px;
+  padding: 0.5556rem 0.7778rem;
   border: none;
   background: transparent;
   color: #eee;
   text-align: left;
   cursor: pointer;
-  font-size: 14px;
+  font-size: 0.7778rem;
 }
 
 .anki-more-dropdown button:hover {
@@ -712,53 +714,53 @@ button.review-heatmap-day:focus-visible {
 }
 
 .anki-edit-dialog {
-  width: min(100% - 32px, 420px);
+  width: min(100% - 1.7778rem, 23.3333rem);
   display: flex;
   flex-direction: column;
-  gap: 12px;
-  padding: 20px;
-  border-radius: 10px;
+  gap: 0.6667rem;
+  padding: 1.1111rem;
+  border-radius: 0.5556rem;
   background: #242424;
   color: #eee;
 }
 
 .anki-edit-dialog h2 {
   margin: 0;
-  font-size: 18px;
+  font-size: 1rem;
 }
 
 .anki-edit-dialog label {
   display: flex;
   flex-direction: column;
-  gap: 4px;
-  font-size: 12px;
+  gap: 0.2222rem;
+  font-size: 0.6667rem;
   color: #999;
 }
 
 .anki-edit-dialog input,
 .anki-edit-dialog textarea {
-  padding: 8px 10px;
+  padding: 0.4444rem 0.5556rem;
   border: 1px solid #3a3a3a;
-  border-radius: 6px;
+  border-radius: 0.3333rem;
   background: #1a1a1a;
   color: #eee;
   font: inherit;
-  font-size: 14px;
+  font-size: 0.7778rem;
 }
 
 .anki-edit-actions {
   display: flex;
   justify-content: flex-end;
-  gap: 8px;
-  margin-top: 4px;
+  gap: 0.4444rem;
+  margin-top: 0.2222rem;
 }
 
 .anki-edit-actions button {
-  padding: 8px 16px;
+  padding: 0.4444rem 0.8889rem;
   border: none;
-  border-radius: 6px;
+  border-radius: 0.3333rem;
   cursor: pointer;
-  font-size: 13px;
+  font-size: 0.7222rem;
 }
 
 .anki-edit-actions button[type='submit'] {
@@ -778,43 +780,43 @@ button.review-heatmap-day:focus-visible {
   z-index: 10;
   display: grid;
   place-items: center;
-  padding: 16px;
+  padding: 0.8889rem;
   background: rgba(0, 0, 0, 0.48);
 }
 
 .flashcard-hotkey-dialog {
-  width: min(100%, 380px);
-  padding: 24px;
+  width: min(100%, 21.1111rem);
+  padding: 1.3333rem;
   border: 1px solid #ddd;
-  border-radius: 8px;
+  border-radius: 0.4444rem;
   background: white;
   color: #222;
-  box-shadow: 0 8px 28px rgba(0, 0, 0, 0.2);
+  box-shadow: 0 0.4444rem 1.5556rem rgba(0, 0, 0, 0.2);
 }
 
 .flashcard-hotkey-dialog h2 {
-  margin: 0 0 20px;
-  font-size: 20px;
+  margin: 0 0 1.1111rem;
+  font-size: 1.1111rem;
 }
 
 .flashcard-hotkey-dialog form {
   display: flex;
   flex-direction: column;
-  gap: 14px;
+  gap: 0.7778rem;
 }
 
 .flashcard-hotkey-dialog label {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 16px;
+  gap: 0.8889rem;
 }
 
 .flashcard-hotkey-dialog input {
-  width: 52px;
-  padding: 8px;
+  width: 2.8889rem;
+  padding: 0.4444rem;
   border: 1px solid #bbb;
-  border-radius: 4px;
+  border-radius: 0.2222rem;
   color: #222;
   font: inherit;
   text-align: center;
@@ -824,19 +826,19 @@ button.review-heatmap-day:focus-visible {
 .flashcard-hotkey-error {
   margin: 0;
   color: #b22;
-  font-size: 14px;
+  font-size: 0.7778rem;
 }
 
 .flashcard-hotkey-actions {
   display: flex;
-  gap: 8px;
-  margin-top: 8px;
+  gap: 0.4444rem;
+  margin-top: 0.4444rem;
 }
 
 .flashcard-hotkey-actions button {
-  padding: 8px 12px;
+  padding: 0.4444rem 0.6667rem;
   border: 1px solid #bbb;
-  border-radius: 4px;
+  border-radius: 0.2222rem;
   background: white;
   color: #222;
   cursor: pointer;
@@ -857,16 +859,16 @@ button.review-heatmap-day:focus-visible {
 
 .activity-charts {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
-  gap: 12px;
-  margin-top: 16px;
+  grid-template-columns: repeat(auto-fit, minmax(min(17.7778rem, 100%), 1fr));
+  gap: 0.6667rem;
+  margin-top: 0.8889rem;
 }
 
 .activity-chart {
   margin: 0;
-  padding: 12px;
+  padding: 0.6667rem;
   border: 1px solid var(--border);
-  border-radius: 8px;
+  border-radius: 0.4444rem;
 }
 
 .activity-chart-header {
@@ -874,33 +876,33 @@ button.review-heatmap-day:focus-visible {
   flex-wrap: wrap;
   align-items: flex-start;
   justify-content: space-between;
-  gap: 8px;
+  gap: 0.4444rem;
 }
 
 .activity-chart-header figcaption {
   display: flex;
   flex-direction: column;
-  font-size: 14px;
+  font-size: 0.7778rem;
 }
 
 .activity-chart-summary {
   color: var(--text);
-  font-size: 12px;
+  font-size: 0.6667rem;
 }
 
 .activity-chart-ranges {
   display: flex;
   border: 1px solid var(--border);
-  border-radius: 6px;
+  border-radius: 0.3333rem;
   overflow: hidden;
 }
 
 .activity-chart-ranges button {
-  padding: 3px 8px;
+  padding: 0.1667rem 0.4444rem;
   border: none;
   background: var(--bg);
   color: var(--text);
-  font-size: 11px;
+  font-size: 0.6111rem;
   cursor: pointer;
 }
 
@@ -916,18 +918,18 @@ button.review-heatmap-day:focus-visible {
 
 .activity-chart-body {
   display: flex;
-  gap: 6px;
-  margin-top: 14px;
+  gap: 0.3333rem;
+  margin-top: 0.7778rem;
 }
 
 /* Tick labels, each centered on its gridline; as tall as the plot */
 .activity-chart-y-axis {
   position: relative;
   flex-shrink: 0;
-  min-width: 24px;
-  height: 120px;
+  min-width: 1.3333rem;
+  height: 6.6667rem;
   color: var(--text);
-  font-size: 10px;
+  font-size: 0.5556rem;
   font-variant-numeric: tabular-nums;
   text-align: right;
 }
@@ -953,7 +955,7 @@ button.review-heatmap-day:focus-visible {
 .activity-chart-plot svg {
   display: block;
   width: 100%;
-  height: 120px;
+  height: 6.6667rem;
 }
 
 .activity-chart-gridline {
@@ -970,24 +972,24 @@ button.review-heatmap-day:focus-visible {
 
 .activity-chart-legend {
   display: flex;
-  gap: 12px;
-  margin: 6px 0 0;
+  gap: 0.6667rem;
+  margin: 0.3333rem 0 0;
   padding: 0;
   list-style: none;
   color: var(--text);
-  font-size: 11px;
+  font-size: 0.6111rem;
 }
 
 .activity-chart-legend li {
   display: flex;
   align-items: center;
-  gap: 4px;
+  gap: 0.2222rem;
 }
 
 .activity-chart-swatch {
   display: inline-block;
-  width: 10px;
-  height: 10px;
+  width: 0.5556rem;
+  height: 0.5556rem;
   border-radius: 2px;
 }
 
@@ -1013,9 +1015,9 @@ button.review-heatmap-day:focus-visible {
 .activity-chart-axis {
   display: flex;
   justify-content: space-between;
-  margin-top: 4px;
+  margin-top: 0.2222rem;
   color: var(--text);
-  font-size: 10px;
+  font-size: 0.5556rem;
 }
 
 /* The card list page (from the heatmap and activity charts): the Browse
@@ -1023,25 +1025,25 @@ button.review-heatmap-day:focus-visible {
 
 .flashcards-list-table .flashcards-table-header,
 .flashcards-list-table .flashcards-row {
-  grid-template-columns: minmax(110px, 1fr) minmax(80px, 1fr) minmax(160px, 3fr) 150px 110px 80px;
+  grid-template-columns: minmax(6.1111rem, 1fr) minmax(4.4444rem, 1fr) minmax(8.8889rem, 3fr) 8.3333rem 6.1111rem 4.4444rem;
 }
 
 .flashcards-list-table .flashcards-table-scroll {
   height: auto;
-  max-height: max(240px, calc(100vh - 240px));
+  max-height: max(13.3333rem, calc(100vh - 13.3333rem));
 }
 
 .flashcard-day-grades {
   display: flex;
-  gap: 4px;
+  gap: 0.2222rem;
   overflow: hidden;
 }
 
 .flashcard-day-grade {
   flex-shrink: 0;
-  padding: 1px 8px;
-  border-radius: 999px;
-  font-size: 11px;
+  padding: 1px 0.4444rem;
+  border-radius: 55.5rem;
+  font-size: 0.6111rem;
   font-weight: 600;
 }
 
@@ -1058,3 +1060,21 @@ button.review-heatmap-day:focus-visible {
 .practice-mode { display: flex; align-items: center; gap: 0.75rem; margin: 1rem 0; }
 .typed-answer { display: grid; gap: 0.75rem; width: min(100%, 28rem); margin: 1rem auto; }
 .typed-answer input { font-size: 1.25rem; padding: 0.75rem; }
+
+/* Narrow screens: let the wide browse table scroll sideways instead of clipping */
+@media (max-width: 960px) {
+  .flashcards-table {
+    overflow-x: auto;
+  }
+
+  .flashcards-table-header,
+  .flashcards-table-scroll {
+    min-width: 50rem;
+  }
+}
+
+@media (max-width: 480px) {
+  .flashcards-page {
+    padding: 0.8889rem 0.6667rem;
+  }
+}
