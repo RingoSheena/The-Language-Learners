@@ -14,7 +14,7 @@
 
 .bookshelf-content.dragging {
   outline: 2px dashed var(--accent);
-  outline-offset: -8px;
+  outline-offset: -0.4444rem;
   background: var(--accent-bg);
 }
 
@@ -50,11 +50,11 @@
 }
 
 .bookshelf-search {
-  flex: 1 1 220px;
-  max-width: 360px;
+  flex: 1 1 12.2222rem;
+  max-width: 20rem;
   padding: 0.45rem 0.75rem;
   border: 1px solid var(--border);
-  border-radius: 6px;
+  border-radius: 0.3333rem;
   background: var(--bg);
   color: var(--text-h);
   font: inherit;
@@ -74,7 +74,7 @@
 .status-chip {
   padding: 0.3rem 0.7rem;
   border: 1px solid var(--border);
-  border-radius: 999px;
+  border-radius: 55.5rem;
   background: var(--bg);
   color: var(--text);
   font: inherit;
@@ -110,13 +110,13 @@
 .bookshelf-grid {
   margin-top: 1.5rem;
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(7.7778rem, 1fr));
   gap: 1.5rem;
 }
 
 .book-card {
   position: relative;
-  border-radius: 8px;
+  border-radius: 0.4444rem;
 }
 
 .book-open-btn {
@@ -129,7 +129,7 @@
   padding: 0;
   background: var(--code-bg);
   border: 1px solid var(--border);
-  border-radius: 8px;
+  border-radius: 0.4444rem;
   cursor: pointer;
   color: var(--text-h);
   font: inherit;
@@ -142,14 +142,14 @@
 
 .book-delete-btn {
   position: absolute;
-  top: -8px;
-  right: -8px;
+  top: -0.4444rem;
+  right: -0.4444rem;
   z-index: 1;
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 22px;
-  height: 22px;
+  width: 1.2222rem;
+  height: 1.2222rem;
   padding: 0;
   border: 1px solid var(--border);
   border-radius: 50%;
@@ -167,6 +167,14 @@
 .book-delete-btn:focus-visible {
   opacity: 1;
   visibility: visible;
+}
+
+/* Touch screens have no hover, so keep the delete button reachable */
+@media (hover: none) {
+  .book-delete-btn {
+    opacity: 1;
+    visibility: visible;
+  }
 }
 
 .book-delete-btn:hover {
@@ -201,3 +209,13 @@
 }
 
 .book-progress { display: block; margin-top: 0.3rem; font-size: 0.75rem; color: #e9d5ff; }
+@media (max-width: 480px) {
+  .bookshelf-content {
+    padding: 1rem 0.75rem 2rem;
+  }
+
+  .bookshelf-grid {
+    grid-template-columns: repeat(auto-fill, minmax(6.6667rem, 1fr));
+    gap: 1rem;
+  }
+}

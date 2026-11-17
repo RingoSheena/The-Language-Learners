@@ -343,13 +343,16 @@ function splitDefinitionLine(line) {
     : { reading: line.slice(0, spaceIndex), gloss: line.slice(spaceIndex + 1) }
 }
 
-const ROW_HEIGHT = 36
+// A row is 2rem tall, so the list grows with the page's text size
+const ROW_HEIGHT_REM = 2
+const rowHeightPx = () =>
+  ROW_HEIGHT_REM * (parseFloat(getComputedStyle(document.documentElement).fontSize) || 18)
 const ROW_OVERSCAN = 10
 
 // Renders only the rows near the visible scroll area, so a list of
 // thousands of flashcards stays as a few dozen real DOM rows. `active`
 // re-attaches to the container when the page showing it opens.
-function useVirtualRows(containerRef, itemCount, active) {
+function useVirtualRows(containerRef, itemCount, active, rowHeight) {
   const [range, setRange] = useState({ start: 0, end: Math.min(itemCount, 50) })
 
   useEffect(() => {
@@ -359,9 +362,9 @@ function useVirtualRows(containerRef, itemCount, active) {
     function updateRange() {
       const start = Math.max(
         0,
-        Math.floor(el.scrollTop / ROW_HEIGHT) - ROW_OVERSCAN
+        Math.floor(el.scrollTop / rowHeight) - ROW_OVERSCAN
       )
-      const visibleRows = Math.ceil(el.clientHeight / ROW_HEIGHT) + ROW_OVERSCAN * 2
+      const visibleRows = Math.ceil(el.clientHeight / rowHeight) + ROW_OVERSCAN * 2
       setRange({ start, end: Math.min(itemCount, start + visibleRows) })
     }
 
@@ -373,7 +376,7 @@ function useVirtualRows(containerRef, itemCount, active) {
       el.removeEventListener('scroll', updateRange)
       resizeObserver.disconnect()
     }
-  }, [containerRef, itemCount, active])
+  }, [containerRef, itemCount, active, rowHeight])
 
   return range
 }
@@ -567,10 +570,19 @@ export default function Flashcards({ onBack }) {
       .filter(({ text }) => matchesTerms(text, terms))
       .map(({ card }) => card)
   }, [cards, search, searchIndex])
+  // Re-measured when the window resizes, since the base text size changes with it
+  const [, setResizeTick] = useState(0)
+  useEffect(() => {
+    const onResize = () => setResizeTick((tick) => tick + 1)
+    window.addEventListener('resize', onResize)
+    return () => window.removeEventListener('resize', onResize)
+  }, [])
+  const rowHeight = rowHeightPx()
   const { start: rowStart, end: rowEnd } = useVirtualRows(
     tableScrollRef,
     browseCards.length,
-    browsing
+    browsing,
+    rowHeight
   )
 
   // Loads the cards (with their per-card stats) and the practice stats, on
@@ -1380,7 +1392,7 @@ export default function Flashcards({ onBack }) {
 
             <div className="flashcards-table-scroll">
               {rows.map((row) => (
-                <div className="flashcards-row" key={row.card.id} style={{ height: ROW_HEIGHT }}>
+                <div className="flashcards-row" key={row.card.id} style={{ height: rowHeight }}>
                   <span className="flashcards-cell flashcards-cell-word">
                     <span lang="ja" title={row.card.japanese}>
                       {row.card.japanese}
@@ -1493,17 +1505,17 @@ export default function Flashcards({ onBack }) {
             <div className="flashcards-table-scroll" ref={tableScrollRef}>
               <div
                 className="flashcards-table-spacer"
-                style={{ height: browseCards.length * ROW_HEIGHT }}
+                style={{ height: browseCards.length * rowHeight }}
               >
                 <div
                   className="flashcards-table-body"
-                  style={{ transform: `translateY(${rowStart * ROW_HEIGHT}px)` }}
+                  style={{ transform: `translateY(${rowStart * rowHeight}px)` }}
                 >
                   {visibleCards.map((card) => (
                     <div
                       className="flashcards-row"
                       key={card.id}
-                      style={{ height: ROW_HEIGHT }}
+                      style={{ height: rowHeight }}
                     >
                       <span className="flashcards-cell flashcards-cell-word">
                         <span lang="ja" title={card.japanese}>

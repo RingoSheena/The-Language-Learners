@@ -1,0 +1,260 @@
+/* Brings the signed-in pages (bookshelf, settings, top bar) in line with the
+   look of the landing / login pages: same warm-light and navy-dark palette,
+   pink accent, pill buttons and rounded cards. Selectors are a little more
+   specific than the older styles so these win without editing them. */
+
+header.topbar,
+.bookshelf-page,
+.settings-page {
+  --pl-bg: #faf7f2;
+  --pl-surface: #ffffff;
+  --pl-ink: #1b1a2e;
+  --pl-muted: #5b5870;
+  --pl-line: #e7e1d6;
+  --pl-accent: #e0457b;
+  --pl-accent-hover: #c8336a;
+  --pl-accent-2: #5b4bdb;
+  --pl-accent-soft: rgba(224, 69, 123, 0.1);
+  --pl-on-accent: #ffffff;
+  --pl-glow-1: rgba(224, 69, 123, 0.14);
+  --pl-glow-2: rgba(91, 75, 219, 0.12);
+  --pl-shadow: 0 18px 40px -22px rgba(27, 26, 46, 0.35);
+}
+
+@media (prefers-color-scheme: dark) {
+  header.topbar,
+  .bookshelf-page,
+  .settings-page {
+    --pl-bg: #12111c;
+    --pl-surface: #1c1b2b;
+    --pl-ink: #f4f2fb;
+    --pl-muted: #b3b0c7;
+    --pl-line: #34324a;
+    --pl-accent: #ff6b9a;
+    --pl-accent-hover: #ff86ad;
+    --pl-accent-2: #9d90ff;
+    --pl-accent-soft: rgba(255, 107, 154, 0.14);
+    --pl-on-accent: #1a0b13;
+    --pl-glow-1: rgba(255, 107, 154, 0.12);
+    --pl-glow-2: rgba(157, 144, 255, 0.14);
+    --pl-shadow: 0 18px 40px -22px rgba(0, 0, 0, 0.8);
+  }
+}
+
+/* ---------- Top bar ---------- */
+
+header.topbar {
+  padding-top: 0.75rem;
+  padding-bottom: 0.75rem;
+  background: var(--pl-surface);
+  border-bottom: 1px solid var(--pl-line);
+}
+
+header.topbar .topbar-logo {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.55rem;
+  font-size: 1.25rem;
+  font-weight: 800;
+  letter-spacing: -0.03em;
+  color: var(--pl-ink);
+}
+
+header.topbar .topbar-logo::before {
+  content: '読';
+  display: grid;
+  place-items: center;
+  width: 1.9rem;
+  height: 1.9rem;
+  border-radius: 0.6rem;
+  background: linear-gradient(135deg, var(--pl-accent), var(--pl-accent-2));
+  color: #fff;
+  font-size: 1rem;
+  font-weight: 700;
+  letter-spacing: 0;
+}
+
+header.topbar .topbar-btn {
+  padding: 0.5rem 1.05rem;
+  border-radius: 999px;
+  background: var(--pl-bg);
+  border: 1px solid var(--pl-line);
+  color: var(--pl-ink);
+  font-size: 0.9rem;
+  font-weight: 600;
+  transition: border-color 0.15s ease, color 0.15s ease, background-color 0.15s ease;
+}
+
+header.topbar .topbar-btn:hover {
+  background: var(--pl-bg);
+  border-color: var(--pl-accent);
+  color: var(--pl-accent);
+}
+
+header.topbar .topbar-btn:focus-visible {
+  outline: 3px solid var(--pl-accent-2);
+  outline-offset: 2px;
+}
+
+header.topbar .topbar-btn:disabled {
+  opacity: 0.55;
+}
+
+/* The one primary action on the bookshelf */
+header.topbar label.topbar-btn {
+  background: var(--pl-accent);
+  border-color: var(--pl-accent);
+  color: var(--pl-on-accent);
+}
+
+header.topbar label.topbar-btn:hover {
+  background: var(--pl-accent-hover);
+  border-color: var(--pl-accent-hover);
+  color: var(--pl-on-accent);
+}
+
+/* ---------- Bookshelf ---------- */
+
+.bookshelf-page,
+.settings-page {
+  background-color: var(--pl-bg);
+  background-image:
+    radial-gradient(50rem 24rem at 90% -8%, var(--pl-glow-2), transparent 60%),
+    radial-gradient(42rem 22rem at 0% 0%, var(--pl-glow-1), transparent 60%);
+  color: var(--pl-ink);
+}
+
+.bookshelf-page .bookshelf-content {
+  padding-top: 1.75rem;
+}
+
+.bookshelf-page .bookshelf-content.dragging {
+  outline-color: var(--pl-accent);
+  background: var(--pl-accent-soft);
+}
+
+.bookshelf-page .drop-overlay,
+.bookshelf-page .link-btn {
+  color: var(--pl-accent);
+}
+
+.bookshelf-page .bookshelf-empty {
+  color: var(--pl-muted);
+}
+
+.bookshelf-page .bookshelf-search {
+  padding: 0.6rem 1rem;
+  border: 1.5px solid var(--pl-line);
+  border-radius: 999px;
+  background: var(--pl-surface);
+  color: var(--pl-ink);
+}
+
+.bookshelf-page .bookshelf-search:focus {
+  border-color: var(--pl-accent);
+  box-shadow: 0 0 0 4px var(--pl-accent-soft);
+}
+
+.bookshelf-page .status-chip {
+  padding: 0.4rem 0.9rem;
+  border-color: var(--pl-line);
+  background: var(--pl-surface);
+  color: var(--pl-muted);
+  font-weight: 600;
+}
+
+.bookshelf-page .status-chip:hover {
+  border-color: var(--pl-accent);
+  color: var(--pl-accent);
+}
+
+.bookshelf-page .status-chip.active {
+  border-color: var(--pl-accent);
+  background: var(--pl-accent-soft);
+  color: var(--pl-accent);
+}
+
+.bookshelf-page .book-card,
+.bookshelf-page .book-open-btn {
+  border-radius: 1rem;
+}
+
+.bookshelf-page .book-open-btn {
+  background: var(--pl-surface);
+  border-color: var(--pl-line);
+  color: var(--pl-ink);
+  transition: transform 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.bookshelf-page .book-open-btn:hover {
+  border-color: var(--pl-accent);
+  transform: translateY(-3px);
+  box-shadow: var(--pl-shadow);
+}
+
+.bookshelf-page .book-open-btn:focus-visible,
+.bookshelf-page .book-delete-btn:focus-visible {
+  outline: 3px solid var(--pl-accent-2);
+  outline-offset: 3px;
+}
+
+.bookshelf-page .book-title {
+  background: linear-gradient(to top, rgba(18, 17, 28, 0.88), rgba(18, 17, 28, 0.6));
+}
+
+.bookshelf-page .book-progress {
+  color: #ffc2d6;
+}
+
+.bookshelf-page .book-delete-btn {
+  border-color: var(--pl-line);
+  background: var(--pl-surface);
+  color: var(--pl-ink);
+}
+
+/* ---------- Settings ---------- */
+
+.settings-page .settings-content h2 {
+  letter-spacing: -0.03em;
+  color: var(--pl-ink);
+}
+
+.settings-page .settings-section {
+  padding: 1.5rem;
+  border: 1px solid var(--pl-line);
+  border-radius: 1.25rem;
+  background: var(--pl-surface);
+}
+
+.settings-page .settings-section h3,
+.settings-page .settings-field {
+  color: var(--pl-ink);
+}
+
+.settings-page .settings-field select {
+  border-color: var(--pl-line);
+  border-radius: 0.7rem;
+  background: var(--pl-bg);
+  color: var(--pl-ink);
+}
+
+.settings-page .settings-help,
+.settings-page .settings-status,
+.settings-page .retention-preview figcaption,
+.settings-page .retention-preview-value,
+.settings-page .retention-preview-label {
+  color: var(--pl-muted);
+}
+
+.settings-page .retention-preview-fill {
+  background: var(--pl-line);
+}
+
+.settings-page .retention-preview-bar-selected .retention-preview-fill {
+  background: var(--pl-accent);
+}
+
+.settings-page .retention-preview-bar-selected .retention-preview-value,
+.settings-page .retention-preview-bar-selected .retention-preview-label {
+  color: var(--pl-ink);
+}

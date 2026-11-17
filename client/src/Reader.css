@@ -16,7 +16,7 @@
   top: 0;
   right: 0;
   z-index: 5;
-  width: 340px;
+  width: 18.8889rem;
   max-width: 100%;
   height: 100%;
   overflow-y: auto;
@@ -29,10 +29,10 @@
 .bookmarks-panel h2 { font-size: 1.05rem; margin: 0; }
 .bookmarks-list { list-style: none; padding: 0; margin: 0; }
 .bookmarks-list li { padding: 0.75rem 0; border-bottom: 1px solid var(--border); }
-.bookmark-jump { display: block; width: 100%; text-align: left; padding: 0.5rem; background: var(--code-bg); color: var(--text-h); border: 1px solid var(--border); border-radius: 4px; overflow-wrap: anywhere; }
+.bookmark-jump { display: block; width: 100%; text-align: left; padding: 0.5rem; background: var(--code-bg); color: var(--text-h); border: 1px solid var(--border); border-radius: 0.2222rem; overflow-wrap: anywhere; }
 .bookmark-jump:hover { border-color: var(--accent); }
 .bookmark-jump small { display: block; margin-top: 0.4rem; color: var(--text); }
-.bookmark-remove { margin-top: 0.4rem; background: transparent; color: var(--text); border: 1px solid var(--border); border-radius: 4px; font-size: 0.8rem; }
+.bookmark-remove { margin-top: 0.4rem; background: transparent; color: var(--text); border: 1px solid var(--border); border-radius: 0.2222rem; font-size: 0.8rem; }
 
 .reader-content {
   position: relative;
@@ -56,7 +56,7 @@
   transform: translateX(-50%);
   margin: 0;
   padding: 0.4rem 1rem;
-  border-radius: 999px;
+  border-radius: 55.5rem;
   background: rgba(0, 0, 0, 0.65);
   color: #fff;
   font-size: 0.85rem;
