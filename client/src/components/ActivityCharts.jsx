@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useId, useState } from 'react'
 import {
   axisTicks,
   CHART_RANGES,
@@ -8,6 +8,7 @@ import {
   futureBuckets,
   latestDay,
   pastBuckets,
+  perDayAverage,
   retentionSeries,
 } from '../activityCharts.js'
 
@@ -66,7 +67,15 @@ function summarize(chart, bars) {
       ? `${percent(passed / reviews)} passed of ${plural(reviews, 'review')}`
       : 'No reviews yet'
   }
-  return plural(bars.reduce((sum, bar) => sum + bar.value, 0), chart.noun)
+  const total = plural(bars.reduce((sum, bar) => sum + bar.value, 0), chart.noun)
+  return `${total} · ${formatAverage(perDayAverage(bars))} per day`
+}
+
+// "2.4", or "37" once it's 10 or more
+function formatAverage(average) {
+  return average >= 10
+    ? Math.round(average).toLocaleString()
+    : average.toLocaleString(undefined, { maximumFractionDigits: 1 })
 }
 
 function barTitle(chart, bar) {
@@ -77,9 +86,7 @@ function barTitle(chart, bar) {
         `${bar.reviews - bar.passed} failed)`
 }
 
-function ActivityChart({ chart, history, today, earliest, onSelectBar }) {
-  const [rangeId, setRangeId] = useState(CHART_RANGES[0].id)
-  const range = CHART_RANGES.find((option) => option.id === rangeId)
+function ActivityChart({ chart, range, history, today, earliest, onSelectBar }) {
   const bars = chart.bars(history, range, today, earliest)
   // Bars scale to the y axis, whose top is the first round number at or
   // above the busiest bar: most reviews for retention, otherwise the highest
@@ -87,26 +94,16 @@ function ActivityChart({ chart, history, today, earliest, onSelectBar }) {
   const ticks = axisTicks(Math.max(...bars.map((bar) => (chart.retention ? bar.reviews : bar.value))))
   const top = ticks.at(-1)
   const summary = summarize(chart, bars)
+  // For the bars' gradient; useId's punctuation isn't safe inside url(#…)
+  const gradientId = `bar-gradient-${useId().replace(/[^\w-]/g, '')}`
 
   return (
-    <figure className="activity-chart">
+    <figure className={`activity-chart activity-chart-${chart.id}`}>
       <div className="activity-chart-header">
         <figcaption>
           <strong>{chart.title}</strong>
           <span className="activity-chart-summary">{summary}</span>
         </figcaption>
-        <div className="activity-chart-ranges" role="group" aria-label={`${chart.title} range`}>
-          {CHART_RANGES.map((option) => (
-            <button
-              key={option.id}
-              type="button"
-              aria-pressed={option.id === rangeId}
-              onClick={() => setRangeId(option.id)}
-            >
-              {option.label}
-            </button>
-          ))}
-        </div>
       </div>
 
       <div className="activity-chart-body">
@@ -130,6 +127,12 @@ function ActivityChart({ chart, history, today, earliest, onSelectBar }) {
               role="img"
               aria-label={`${chart.title}, ${range.label}: ${summary}`}
             >
+              <defs>
+                <linearGradient id={gradientId} x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0" className="activity-chart-stop-top" />
+                  <stop offset="1" className="activity-chart-stop-bottom" />
+                </linearGradient>
+              </defs>
               {ticks.slice(1).map((tick) => (
                 <line
                   key={tick}
@@ -186,6 +189,7 @@ function ActivityChart({ chart, history, today, earliest, onSelectBar }) {
                     ) : (
                       <rect
                         className={`activity-chart-bar activity-chart-bar-${chart.id}`}
+                        fill={`url(#${gradientId})`}
                         x={index + 0.1}
                         width={0.8}
                         y={100 - (bar.value / top) * 100}
@@ -222,21 +226,45 @@ function ActivityChart({ chart, history, today, earliest, onSelectBar }) {
 // Charts of cards added, reviews, cards coming due, and retention over time.
 // history is the stats response's daily counts (see server/src/flashcardStats.js).
 // onSelectBar(kind, { start, end }) opens the cards behind a clicked bar.
+// One time frame applies to every chart.
 export default function ActivityCharts({ history, today, onSelectBar }) {
+  const [rangeId, setRangeId] = useState(CHART_RANGES[0].id)
+  const range = CHART_RANGES.find((option) => option.id === rangeId)
   const earliest = earliestDay(history.added, history.reviews) ?? today
 
   return (
-    <section className="activity-charts" aria-label="Activity over time">
-      {CHARTS.map((chart) => (
-        <ActivityChart
-          key={chart.id}
-          chart={chart}
-          history={history}
-          today={today}
-          earliest={earliest}
-          onSelectBar={onSelectBar}
-        />
-      ))}
+    <section className="activity-charts-section" aria-labelledby="activity-charts-title">
+      <div className="activity-charts-header">
+        <h2 className="flashcards-panel-title" id="activity-charts-title">
+          Activity
+        </h2>
+        <div className="activity-chart-ranges" role="group" aria-label="Time frame for all charts">
+          {CHART_RANGES.map((option) => (
+            <button
+              key={option.id}
+              type="button"
+              aria-pressed={option.id === rangeId}
+              onClick={() => setRangeId(option.id)}
+            >
+              {option.label}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      <div className="activity-charts">
+        {CHARTS.map((chart) => (
+          <ActivityChart
+            key={chart.id}
+            chart={chart}
+            range={range}
+            history={history}
+            today={today}
+            earliest={earliest}
+            onSelectBar={onSelectBar}
+          />
+        ))}
+      </div>
     </section>
   )
 }

@@ -11,6 +11,7 @@ import {
   futureBuckets,
   latestDay,
   pastBuckets,
+  perDayAverage,
   retentionSeries,
 } from './activityCharts.js'
 
@@ -120,4 +121,16 @@ test('earliest and latest days look across every map', () => {
   assert.equal(earliestDay({ '2026-02-01': 1 }, { '2026-01-15': 2 }), '2026-01-15')
   assert.equal(latestDay({ '2026-02-01': 1 }, { '2026-01-15': 2 }), '2026-02-01')
   assert.equal(earliestDay({}), null)
+})
+
+test('the per-day average spreads the total over every day the bars cover', () => {
+  // Weekly bars: 14 days in all, 21 cards
+  const weekly = countSeries(
+    { '2026-03-18': 7, '2026-03-30': 14 },
+    pastBuckets({ days: 14 }, TODAY, null)
+  )
+  assert.equal(perDayAverage(weekly), 21 / 14)
+  // A month of daily bars with one busy day
+  assert.equal(perDayAverage(countSeries({ [TODAY]: 30 }, pastBuckets(range('month'), TODAY))), 1)
+  assert.equal(perDayAverage([]), 0)
 })

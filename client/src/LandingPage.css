@@ -3,19 +3,20 @@
 
 .landing,
 .auth-shell {
-  --pl-bg: #faf7f2;
-  --pl-surface: #ffffff;
-  --pl-ink: #1b1a2e;
-  --pl-muted: #5b5870;
-  --pl-line: #e7e1d6;
-  --pl-accent: #e0457b;
-  --pl-accent-hover: #c8336a;
-  --pl-accent-2: #5b4bdb;
-  --pl-accent-soft: rgba(224, 69, 123, 0.1);
-  --pl-on-accent: #ffffff;
-  --pl-glow-1: rgba(224, 69, 123, 0.18);
-  --pl-glow-2: rgba(91, 75, 219, 0.16);
-  --pl-shadow: 0 24px 60px -24px rgba(27, 26, 46, 0.25);
+  /* The whole palette comes from the color theme (index.css) */
+  --pl-bg: var(--theme-bg);
+  --pl-surface: var(--theme-surface);
+  --pl-ink: var(--theme-ink);
+  --pl-muted: var(--theme-muted);
+  --pl-line: var(--theme-line);
+  --pl-accent: var(--theme-accent);
+  --pl-accent-hover: var(--theme-accent-hover);
+  --pl-accent-2: var(--theme-accent-2);
+  --pl-accent-soft: color-mix(in srgb, var(--theme-accent) 10%, transparent);
+  --pl-on-accent: var(--theme-on-accent);
+  --pl-glow-1: color-mix(in srgb, var(--theme-accent) 18%, transparent);
+  --pl-glow-2: color-mix(in srgb, var(--theme-accent-2) 16%, transparent);
+  --pl-shadow: 0 24px 60px -24px color-mix(in srgb, var(--theme-ink) 25%, transparent);
   --pl-error-bg: #fde8ec;
   --pl-error-border: #f6bcc8;
   --pl-error-text: #a31b3d;
@@ -34,18 +35,9 @@
 @media (prefers-color-scheme: dark) {
   .landing,
   .auth-shell {
-    --pl-bg: #12111c;
-    --pl-surface: #1c1b2b;
-    --pl-ink: #f4f2fb;
-    --pl-muted: #b3b0c7;
-    --pl-line: #34324a;
-    --pl-accent: #ff6b9a;
-    --pl-accent-hover: #ff86ad;
-    --pl-accent-2: #9d90ff;
-    --pl-accent-soft: rgba(255, 107, 154, 0.14);
-    --pl-on-accent: #1a0b13;
-    --pl-glow-1: rgba(255, 107, 154, 0.16);
-    --pl-glow-2: rgba(157, 144, 255, 0.18);
+    --pl-accent-soft: color-mix(in srgb, var(--theme-accent) 14%, transparent);
+    --pl-glow-1: color-mix(in srgb, var(--theme-accent) 16%, transparent);
+    --pl-glow-2: color-mix(in srgb, var(--theme-accent-2) 18%, transparent);
     --pl-shadow: 0 24px 60px -24px rgba(0, 0, 0, 0.7);
     --pl-error-bg: #3a1822;
     --pl-error-border: #6b2a3b;
@@ -60,6 +52,9 @@
 
 .landing {
   min-height: 100vh;
+  /* #root is a fixed-height flex column; without this the page would be
+     squeezed to the window height and its background would stop there */
+  flex-shrink: 0;
   display: flex;
   flex-direction: column;
 }
@@ -353,6 +348,7 @@
 
 .auth-shell {
   min-height: 100vh;
+  flex-shrink: 0;
   display: grid;
   place-items: center;
   padding: 2rem 1rem;

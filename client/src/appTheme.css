@@ -1,42 +1,36 @@
-/* Brings the signed-in pages (bookshelf, settings, top bar) in line with the
-   look of the landing / login pages: same warm-light and navy-dark palette,
-   pink accent, pill buttons and rounded cards. Selectors are a little more
+/* Brings the signed-in pages (bookshelf, settings, flashcards, top bar) in line with the
+   look of the landing / login pages: the same color theme palette, pill
+   buttons and rounded cards. Selectors are a little more
    specific than the older styles so these win without editing them. */
 
 header.topbar,
 .bookshelf-page,
-.settings-page {
-  --pl-bg: #faf7f2;
-  --pl-surface: #ffffff;
-  --pl-ink: #1b1a2e;
-  --pl-muted: #5b5870;
-  --pl-line: #e7e1d6;
-  --pl-accent: #e0457b;
-  --pl-accent-hover: #c8336a;
-  --pl-accent-2: #5b4bdb;
-  --pl-accent-soft: rgba(224, 69, 123, 0.1);
-  --pl-on-accent: #ffffff;
-  --pl-glow-1: rgba(224, 69, 123, 0.14);
-  --pl-glow-2: rgba(91, 75, 219, 0.12);
-  --pl-shadow: 0 18px 40px -22px rgba(27, 26, 46, 0.35);
+.settings-page,
+.flashcards-page {
+  /* The whole palette comes from the color theme (index.css) */
+  --pl-bg: var(--theme-bg);
+  --pl-surface: var(--theme-surface);
+  --pl-ink: var(--theme-ink);
+  --pl-muted: var(--theme-muted);
+  --pl-line: var(--theme-line);
+  --pl-accent: var(--theme-accent);
+  --pl-accent-hover: var(--theme-accent-hover);
+  --pl-accent-2: var(--theme-accent-2);
+  --pl-accent-soft: color-mix(in srgb, var(--theme-accent) 10%, transparent);
+  --pl-on-accent: var(--theme-on-accent);
+  --pl-glow-1: color-mix(in srgb, var(--theme-accent) 14%, transparent);
+  --pl-glow-2: color-mix(in srgb, var(--theme-accent-2) 12%, transparent);
+  --pl-shadow: 0 18px 40px -22px color-mix(in srgb, var(--theme-ink) 35%, transparent);
 }
 
 @media (prefers-color-scheme: dark) {
   header.topbar,
   .bookshelf-page,
-  .settings-page {
-    --pl-bg: #12111c;
-    --pl-surface: #1c1b2b;
-    --pl-ink: #f4f2fb;
-    --pl-muted: #b3b0c7;
-    --pl-line: #34324a;
-    --pl-accent: #ff6b9a;
-    --pl-accent-hover: #ff86ad;
-    --pl-accent-2: #9d90ff;
-    --pl-accent-soft: rgba(255, 107, 154, 0.14);
-    --pl-on-accent: #1a0b13;
-    --pl-glow-1: rgba(255, 107, 154, 0.12);
-    --pl-glow-2: rgba(157, 144, 255, 0.14);
+  .settings-page,
+  .flashcards-page {
+    --pl-accent-soft: color-mix(in srgb, var(--theme-accent) 14%, transparent);
+    --pl-glow-1: color-mix(in srgb, var(--theme-accent) 12%, transparent);
+    --pl-glow-2: color-mix(in srgb, var(--theme-accent-2) 14%, transparent);
     --pl-shadow: 0 18px 40px -22px rgba(0, 0, 0, 0.8);
   }
 }
@@ -44,6 +38,12 @@ header.topbar,
 /* ---------- Top bar ---------- */
 
 header.topbar {
+  /* Above the page content, so menus opening from the bar (the color theme
+     picker) are drawn on top and get the clicks. index.css gives .topbar a
+     backdrop-filter, which makes it its own layer; without this the content
+     after it covers anything hanging below the bar. */
+  position: relative;
+  z-index: 10;
   padding-top: 0.75rem;
   padding-bottom: 0.75rem;
   background: var(--pl-surface);
@@ -51,6 +51,12 @@ header.topbar {
 }
 
 header.topbar .topbar-logo {
+  padding: 0;
+  border: none;
+  border-radius: 0.6rem;
+  background: none;
+  font-family: inherit;
+  cursor: pointer;
   display: inline-flex;
   align-items: center;
   gap: 0.55rem;
@@ -91,6 +97,7 @@ header.topbar .topbar-btn:hover {
   color: var(--pl-accent);
 }
 
+header.topbar .topbar-logo:focus-visible,
 header.topbar .topbar-btn:focus-visible {
   outline: 3px solid var(--pl-accent-2);
   outline-offset: 2px;
@@ -113,10 +120,92 @@ header.topbar label.topbar-btn:hover {
   color: var(--pl-on-accent);
 }
 
+/* Icon-only buttons: round, with a tooltip naming the action */
+
+header.topbar .topbar-icon-btn {
+  position: relative;
+  justify-content: center;
+  width: 2.4rem;
+  height: 2.4rem;
+  padding: 0;
+  border-radius: 50%;
+  font-size: 1.1rem;
+}
+
+header.topbar .topbar-icon-btn .icon {
+  display: block;
+}
+
+header.topbar .topbar-icon-btn[aria-expanded='true'] {
+  border-color: var(--pl-accent);
+  background: var(--pl-accent-soft);
+  color: var(--pl-accent);
+}
+
+header.topbar .topbar-badge {
+  position: absolute;
+  top: -0.3rem;
+  right: -0.3rem;
+  min-width: 1.15rem;
+  height: 1.15rem;
+  padding: 0 0.3rem;
+  border-radius: 999px;
+  background: var(--pl-accent-2);
+  color: #fff;
+  font-size: 0.65rem;
+  font-weight: 700;
+  line-height: 1.15rem;
+  text-align: center;
+}
+
+header.topbar [data-tip]::after {
+  content: attr(data-tip);
+  position: absolute;
+  top: calc(100% + 0.5rem);
+  left: 50%;
+  z-index: 20;
+  padding: 0.35rem 0.65rem;
+  border-radius: 0.5rem;
+  background: var(--pl-ink);
+  color: var(--pl-bg);
+  font-size: 0.75rem;
+  font-weight: 600;
+  white-space: nowrap;
+  pointer-events: none;
+  opacity: 0;
+  transform: translate(-50%, -0.2rem);
+  transition: opacity 0.12s ease, transform 0.12s ease;
+}
+
+/* Keep the last button's tooltip from running off the right edge */
+header.topbar .topbar-actions > [data-tip]:last-child::after {
+  left: auto;
+  right: 0;
+  transform: translateY(-0.2rem);
+}
+
+header.topbar [data-tip]:hover::after,
+header.topbar [data-tip]:focus-visible::after {
+  opacity: 1;
+  transform: translate(-50%, 0);
+}
+
+header.topbar .topbar-actions > [data-tip]:last-child:hover::after,
+header.topbar .topbar-actions > [data-tip]:last-child:focus-visible::after {
+  transform: none;
+}
+
+@media (hover: none) {
+  header.topbar [data-tip]::after {
+    display: none;
+  }
+}
+
 /* ---------- Bookshelf ---------- */
 
 .bookshelf-page,
-.settings-page {
+.settings-page,
+.flashcards-page {
   background-color: var(--pl-bg);
   background-image:
     radial-gradient(50rem 24rem at 90% -8%, var(--pl-glow-2), transparent 60%),
@@ -199,62 +288,16 @@ header.topbar label.topbar-btn:hover {
 }
 
 .bookshelf-page .book-title {
-  background: linear-gradient(to top, rgba(18, 17, 28, 0.88), rgba(18, 17, 28, 0.6));
+  /* The theme's dark background, so the white title reads in light mode too */
+  background: linear-gradient(to top, color-mix(in srgb, var(--theme-dark-bg) 88%, transparent), color-mix(in srgb, var(--theme-dark-bg) 60%, transparent));
 }
 
 .bookshelf-page .book-progress {
-  color: #ffc2d6;
+  color: color-mix(in srgb, var(--pl-accent) 35%, #ffffff);
 }
 
 .bookshelf-page .book-delete-btn {
   border-color: var(--pl-line);
   background: var(--pl-surface);
-  color: var(--pl-ink);
-}
-
-/* ---------- Settings ---------- */
-
-.settings-page .settings-content h2 {
-  letter-spacing: -0.03em;
-  color: var(--pl-ink);
-}
-
-.settings-page .settings-section {
-  padding: 1.5rem;
-  border: 1px solid var(--pl-line);
-  border-radius: 1.25rem;
-  background: var(--pl-surface);
-}
-
-.settings-page .settings-section h3,
-.settings-page .settings-field {
-  color: var(--pl-ink);
-}
-
-.settings-page .settings-field select {
-  border-color: var(--pl-line);
-  border-radius: 0.7rem;
-  background: var(--pl-bg);
-  color: var(--pl-ink);
-}
-
-.settings-page .settings-help,
-.settings-page .settings-status,
-.settings-page .retention-preview figcaption,
-.settings-page .retention-preview-value,
-.settings-page .retention-preview-label {
-  color: var(--pl-muted);
-}
-
-.settings-page .retention-preview-fill {
-  background: var(--pl-line);
-}
-
-.settings-page .retention-preview-bar-selected .retention-preview-fill {
-  background: var(--pl-accent);
-}
-
-.settings-page .retention-preview-bar-selected .retention-preview-value,
-.settings-page .retention-preview-bar-selected .retention-preview-label {
   color: var(--pl-ink);
 }

@@ -1,6 +1,8 @@
 import { useMemo, useRef, useState } from 'react'
-import TopBar from './TopBar.jsx'
+import TopBar, { TopBarButton } from './TopBar.jsx'
+import { CardsIcon, LogOutIcon, SettingsIcon, UploadIcon } from './components/icons.jsx'
 import BookshelfFilters from './BookshelfFilters.jsx'
+import ColorThemePicker from './components/ColorThemePicker.jsx'
 import './Bookshelf.css'
 import { loadLocalReadingState } from './readingState.js'
 import { countByStatus, filterBooks } from './bookshelfFilter.js'
@@ -88,8 +90,13 @@ function Bookshelf({
   return (
     <div className="bookshelf-page">
       <TopBar>
-        <label htmlFor="epub-upload" className="topbar-btn">
-          Upload book
+        <label
+          htmlFor="epub-upload"
+          className="topbar-btn topbar-icon-btn"
+          data-tip="Upload book"
+        >
+          <UploadIcon />
+          <span className="visually-hidden">Upload book</span>
         </label>
 
         <input
@@ -100,17 +107,10 @@ function Bookshelf({
           onChange={handleFileChange}
         />
 
-        <button className="topbar-btn" onClick={onOpenFlashcards}>
-          Flashcards
-        </button>
-
-        <button className="topbar-btn" onClick={onOpenSettings}>
-          Settings
-        </button>
-
-        <button type="button" className="topbar-btn" onClick={onLogout}>
-          Log out
-        </button>
+        <TopBarButton label="Flashcards" icon={<CardsIcon />} onClick={onOpenFlashcards} />
+        <ColorThemePicker />
+        <TopBarButton label="Settings" icon={<SettingsIcon />} onClick={onOpenSettings} />
+        <TopBarButton label="Log out" icon={<LogOutIcon />} onClick={onLogout} />
       </TopBar>
 
       <div
