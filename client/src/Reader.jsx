@@ -1,5 +1,12 @@
 import { useEffect, useRef, useState } from 'react'
-import TopBar from './TopBar.jsx'
+import TopBar, { TopBarButton } from './TopBar.jsx'
+import {
+  BackIcon,
+  BookmarkPlusIcon,
+  BookmarksIcon,
+  FullscreenIcon,
+  SlidersIcon,
+} from './components/icons.jsx'
 import ReadingSettingsPanel from './ReadingSettingsPanel.jsx'
 import { loadPreferences, savePreferences } from './readingPreferences.js'
 import { flattenBook } from './epubFlatten.js'
@@ -440,26 +447,30 @@ function Reader({ book, onBack }) {
 
   return (
     <div className="reader-page" ref={pageRef}>
-      <TopBar>
-        <button className="topbar-btn" onClick={() => onBack(reading.flush({ now: true }))}>
-          Return to bookshelf
-        </button>
-        <button className="topbar-btn" onClick={handleToggleFullscreen}>
-          {isFullscreen ? 'Exit fullscreen' : 'Fullscreen'}
-        </button>
-        <button className="topbar-btn" onClick={() => { setIsBookmarksOpen(false); setIsSettingsOpen((open) => !open) }}>
-          Settings
-        </button>
-        <button className="topbar-btn" disabled={!html || isPaginating} onClick={() => { reading.addBookmark(); setIsSettingsOpen(false); setIsBookmarksOpen(true) }}>
-          Add bookmark
-        </button>
-        <button className="topbar-btn" aria-expanded={isBookmarksOpen} aria-controls="bookmarks-panel" onClick={() => { setIsSettingsOpen(false); setIsBookmarksOpen((open) => !open) }}>
-          Bookmarks ({reading.state.bookmarks.length})
-        </button>
-      </TopBar>
-      <div className="reading-progress" role="status">
-        {Math.round((reading.state.position?.progress ?? 0) * 100)}% through {book.name}
-      </div>
+      {/* Fullscreen is just the book: the bar and progress line come back on
+          exit (Esc) */}
+      {!isFullscreen && (
+        <TopBar onHome={() => onBack(reading.flush({ now: true }))}>
+          <TopBarButton label="Fullscreen" icon={<FullscreenIcon />} onClick={handleToggleFullscreen} />
+          <TopBarButton label="Reading settings" icon={<SlidersIcon />} aria-expanded={isSettingsOpen} onClick={() => { setIsBookmarksOpen(false); setIsSettingsOpen((open) => !open) }} />
+          <TopBarButton label="Add bookmark" icon={<BookmarkPlusIcon />} disabled={!html || isPaginating} onClick={() => { reading.addBookmark(); setIsSettingsOpen(false); setIsBookmarksOpen(true) }} />
+          <TopBarButton
+            label="Bookmarks"
+            aria-label={`Bookmarks (${reading.state.bookmarks.length})`}
+            icon={<BookmarksIcon />}
+            badge={reading.state.bookmarks.length || null}
+            aria-expanded={isBookmarksOpen}
+            aria-controls="bookmarks-panel"
+            onClick={() => { setIsSettingsOpen(false); setIsBookmarksOpen((open) => !open) }}
+          />
+          <TopBarButton label="Return to bookshelf" icon={<BackIcon />} onClick={() => onBack(reading.flush({ now: true }))} />
+        </TopBar>
+      )}
+      {!isFullscreen && (
+        <div className="reading-progress" role="status">
+          {Math.round((reading.state.position?.progress ?? 0) * 100)}% through {book.name}
+        </div>
+      )}
       {reading.syncError && <p className="reading-storage-error" role="alert">{reading.syncError}</p>}
 
       <div className="reader-content">

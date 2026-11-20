@@ -1,154 +1,193 @@
-import { useEffect, useMemo, useState } from 'react'
-import TopBar from './TopBar.jsx'
-import { getSettings, updateSettings } from './lib/flashcardsApi.js'
-import { averageReviews, passIntervals } from './retentionPreview.js'
-import { DEFAULT_RETENTION } from '../../shared/srs.js'
+import { useState } from 'react'
+import TopBar, { TopBarButton } from './TopBar.jsx'
+import { BackIcon } from './components/icons.jsx'
+import { NumberField } from './ReadingSettingsPanel.jsx'
+import { defaultPreferences, loadPreferences, savePreferences } from './readingPreferences.js'
+import { HOTKEY_OPTIONS, useDefinitionHotkey } from './hooks/useJapaneseHover.js'
+import { PREVIEW_PARAGRAPHS, PREVIEW_TITLE } from './readingPreviewText.js'
 import './Settings.css'
 
-// Target recall choices, within shared/srs.js's MIN_RETENTION..MAX_RETENTION
-const RETENTION_OPTIONS = [0.7, 0.75, 0.8, 0.85, 0.9, 0.93, 0.95, 0.97]
-
-const percent = (value) => `${Math.round(value * 100)}%`
-
-// "4 days", "5 months", "2 years"
-function formatInterval(days) {
-  const plural = (count, unit) => `${count} ${unit}${count === 1 ? '' : 's'}`
-  if (days < 31) return plural(days, 'day')
-  if (days < 365) return plural(Math.round(days / 30), 'month')
-  return plural(Math.round(days / 365), 'year')
-}
-
-// Shows what each target recall costs and buys: reviews per new card over
-// its first year (bars), and how soon a remembered card comes back.
-function RetentionPreview({ selected }) {
-  // Simulates every option once; quick (~15ms each), but no need to repeat it
-  const workloads = useMemo(
-    () => RETENTION_OPTIONS.map((value) => ({ value, reviews: averageReviews(value) })),
-    []
-  )
-  const busiest = Math.max(...workloads.map(({ reviews }) => reviews))
-  const current = workloads.find(({ value }) => value === selected)
-
+// How a page of a book looks with these settings, as the reader draws it.
+// It scrolls like a chapter: down for horizontal text, sideways for vertical.
+function ReadingPreview({ preferences }) {
+  const vertical = preferences.orientation === 'vertical'
   return (
-    <figure className="retention-preview">
-      <figcaption>Reviews per new card in its first year</figcaption>
-      <div className="retention-preview-bars">
-        {workloads.map(({ value, reviews }) => (
-          <div
-            key={value}
-            className={`retention-preview-bar${value === selected ? ' retention-preview-bar-selected' : ''}`}
-            title={`${percent(value)}: about ${reviews.toFixed(1)} reviews`}
-          >
-            <span className="retention-preview-track">
-              <span
-                className="retention-preview-fill"
-                style={{ height: `${(reviews / busiest) * 100}%` }}
-              >
-                <span className="retention-preview-value">{Math.round(reviews)}</span>
-              </span>
-            </span>
-            <span className="retention-preview-label">{percent(value)}</span>
-          </div>
+    <figure className="reading-preview">
+      <figcaption>Preview</figcaption>
+      {/* The text goes in its own box: a vertical-text element sizes its
+          width to its content, so on the page itself it'd be a thin strip */}
+      <div className="reading-preview-page" style={{ backgroundColor: preferences.backgroundColor }}>
+      <div
+        className="reading-preview-text"
+        lang="ja"
+        tabIndex={0}
+        aria-label="Preview text"
+        style={{
+          color: preferences.textColor,
+          fontSize: `${preferences.fontSize}pt`,
+          letterSpacing: `${preferences.letterSpacing}px`,
+          lineHeight: preferences.lineSpacing,
+          writingMode: vertical ? 'vertical-rl' : 'horizontal-tb',
+          paddingInline: vertical ? undefined : `${preferences.pageMargin}px`,
+          paddingBlock: vertical ? `${preferences.pageMargin}px` : undefined,
+        }}
+      >
+        <h4>{PREVIEW_TITLE}</h4>
+        {PREVIEW_PARAGRAPHS.map((paragraph, index) => (
+          <p key={index}>{paragraph}</p>
         ))}
       </div>
-      {current && (
-        <p className="settings-help">
-          At {percent(selected)}, a new card takes about{' '}
-          <strong>{Math.round(current.reviews)} reviews</strong> in its first year,
-          and you’d forget about{' '}
-          <strong>{Math.round((1 - selected) * 100)} in 100</strong> cards when
-          they come up. A card you keep remembering comes back after{' '}
-          {passIntervals(selected, 4).map(formatInterval).join(', then ')}.
-        </p>
-      )}
+      </div>
     </figure>
   )
 }
 
+// Book settings: how the reader shows text, and how words are looked up.
+// They're saved in this browser and apply the next time a book is opened
+// (the reader's own Display settings panel changes them while reading).
 function Settings({ onBack }) {
-  const [desiredRetention, setDesiredRetention] = useState(null)
-  const [status, setStatus] = useState('') // '' | 'saving' | 'saved' | error message
+  const [preferences, setPreferences] = useState(loadPreferences)
+  const [definitionHotkey, setDefinitionHotkey] = useDefinitionHotkey()
 
-  useEffect(() => {
-    let cancelled = false
-
-    getSettings()
-      .then((settings) => {
-        if (!cancelled) setDesiredRetention(settings.desiredRetention)
-      })
-      .catch((err) => {
-        console.error('Failed to load settings:', err)
-        if (!cancelled) setStatus('Your settings could not be loaded.')
-      })
-
-    return () => {
-      cancelled = true
-    }
-  }, [])
-
-  async function changeRetention(event) {
-    const previous = desiredRetention
-    const next = Number(event.target.value)
-    setDesiredRetention(next)
-    setStatus('saving')
-
-    try {
-      const saved = await updateSettings({ desiredRetention: next })
-      setDesiredRetention(saved.desiredRetention)
-      setStatus('saved')
-    } catch (err) {
-      console.error('Failed to save settings:', err)
-      setDesiredRetention(previous)
-      setStatus(err.message)
-    }
+  const update = (patch) => {
+    const next = { ...preferences, ...patch }
+    setPreferences(next)
+    savePreferences(next)
   }
 
   return (
     <div className="settings-page">
-      <TopBar>
-        <button className="topbar-btn" onClick={onBack}>
-          Return to bookshelf
-        </button>
+      <TopBar onHome={onBack}>
+        <TopBarButton label="Return to bookshelf" icon={<BackIcon />} onClick={onBack} />
       </TopBar>
 
       <div className="settings-content">
-        <h2>Settings</h2>
+        <p className="settings-eyebrow">Reading</p>
+        <h2>Book settings</h2>
+        <p className="settings-intro">
+          How your books look in the reader. Changes are saved right away and
+          apply to every book.
+        </p>
 
-        <section className="settings-section">
-          <h3>Flashcards</h3>
+        <div className="settings-layout">
+          <div className="settings-column">
+            <section className="settings-section">
+              <h3>Looking up words</h3>
+              <label className="settings-field settings-field-row">
+                <span>Hold to look up a word</span>
+                <select
+                  value={definitionHotkey}
+                  onChange={(event) => setDefinitionHotkey(event.target.value)}
+                >
+                  {HOTKEY_OPTIONS.map(({ code, label }) => (
+                    <option key={code} value={code}>{label}</option>
+                  ))}
+                </select>
+              </label>
+              <p className="settings-help">
+                Hold this key while pointing at a word in a book to see its
+                definition.
+              </p>
+            </section>
 
-          <label className="settings-field">
-            <span>Target recall</span>
-            <select
-              value={desiredRetention ?? ''}
-              onChange={changeRetention}
-              disabled={desiredRetention === null || status === 'saving'}
+            <section className="settings-section">
+              <h3>Colors</h3>
+              <div className="settings-grid">
+                <label className="settings-field">
+                  <span>Background</span>
+                  <input
+                    type="color"
+                    value={preferences.backgroundColor}
+                    onChange={(event) => update({ backgroundColor: event.target.value })}
+                  />
+                </label>
+                <label className="settings-field">
+                  <span>Text</span>
+                  <input
+                    type="color"
+                    value={preferences.textColor}
+                    onChange={(event) => update({ textColor: event.target.value })}
+                  />
+                </label>
+              </div>
+            </section>
+
+            <section className="settings-section">
+              <h3>Text and layout</h3>
+              <div className="settings-grid">
+                <NumberField
+                  className="settings-field"
+                  label="Text size"
+                  unit="pt"
+                  min={8}
+                  max={36}
+                  step={0.5}
+                  value={preferences.fontSize}
+                  onCommit={(fontSize) => update({ fontSize })}
+                />
+                <NumberField
+                  className="settings-field"
+                  label="Line spacing"
+                  min={1}
+                  max={3}
+                  step={0.1}
+                  value={preferences.lineSpacing}
+                  onCommit={(lineSpacing) => update({ lineSpacing })}
+                />
+                <NumberField
+                  className="settings-field"
+                  label="Character spacing"
+                  unit="px"
+                  min={-1}
+                  max={10}
+                  step={0.5}
+                  value={preferences.letterSpacing}
+                  onCommit={(letterSpacing) => update({ letterSpacing })}
+                />
+                <NumberField
+                  className="settings-field"
+                  label="Side margins"
+                  unit="px"
+                  min={0}
+                  max={80}
+                  step={4}
+                  value={preferences.pageMargin}
+                  onCommit={(pageMargin) => update({ pageMargin })}
+                />
+              </div>
+
+              <fieldset className="settings-field settings-fieldset">
+                <legend>Orientation</legend>
+                <div className="settings-toggle" role="group">
+                  {[
+                    { value: 'vertical', label: 'Vertical' },
+                    { value: 'horizontal', label: 'Horizontal' },
+                  ].map(({ value, label }) => (
+                    <button
+                      key={value}
+                      type="button"
+                      aria-pressed={preferences.orientation === value}
+                      onClick={() => update({ orientation: value })}
+                    >
+                      {label}
+                    </button>
+                  ))}
+                </div>
+              </fieldset>
+            </section>
+
+
+            <button
+              type="button"
+              className="settings-reset"
+              onClick={() => update(defaultPreferences)}
             >
-              {desiredRetention === null && <option value="">Loading…</option>}
-              {RETENTION_OPTIONS.map((value) => (
-                <option key={value} value={value}>
-                  {percent(value)}
-                  {value === DEFAULT_RETENTION ? ' (recommended)' : ''}
-                </option>
-              ))}
-            </select>
-          </label>
+              Reset display to defaults
+            </button>
+          </div>
 
-          <p className="settings-help">
-            How likely you should be to remember a card when it comes up for
-            review. Lower means fewer reviews but more forgetting; higher means
-            you remember more but review much more often. Changes apply to each
-            card from its next review.
-          </p>
-
-          {desiredRetention !== null && <RetentionPreview selected={desiredRetention} />}
-
-          {status && (
-            <p className={`settings-status${status === 'saving' || status === 'saved' ? '' : ' settings-status-error'}`}>
-              {status === 'saving' ? 'Saving…' : status === 'saved' ? 'Saved.' : status}
-            </p>
-          )}
-        </section>
+          <ReadingPreview preferences={preferences} />
+        </div>
       </div>
     </div>
   )

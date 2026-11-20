@@ -8,7 +8,8 @@ import './ReadingSettingsPanel.css'
 // ever commits a value that already parses as a real number, leaving an
 // out-of-range one as-is until the field loses focus, where onBlur clamps
 // to the allowed min/max as a last step.
-function NumberField({ label, unit, min, max, step, value, onCommit }) {
+// Also used on the Settings page, which passes its own field class.
+export function NumberField({ label, unit, min, max, step, value, onCommit, className = 'reading-settings-field' }) {
   const handleChange = (event) => {
     const parsed = Number(event.target.value)
     if (event.target.value !== '' && Number.isFinite(parsed)) {
@@ -24,7 +25,7 @@ function NumberField({ label, unit, min, max, step, value, onCommit }) {
   }
 
   return (
-    <label className="reading-settings-field">
+    <label className={className}>
       <span>{label}</span>
       <div className="reading-settings-number">
         <input type="number" min={min} max={max} step={step} value={value} onChange={handleChange} onBlur={handleBlur} />

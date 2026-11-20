@@ -1,74 +1,124 @@
-.flashcards-tabs {
-  display: flex;
-  gap: 0.4444rem;
-  margin: 0.6667rem 0 0.8889rem;
+/* The Decks tab on the flashcards page. Tabs and selects are styled with the
+   rest of the page in Flashcards.css. */
+
+.premade-decks {
+  margin-top: 1.5rem;
 }
-.flashcards-tab {
-  padding: 0.4444rem 0.8889rem;
-  border: 1px solid var(--border);
-  border-radius: 0.4444rem;
-  background: transparent;
-  color: var(--text-h);
-  cursor: pointer;
-}
-.flashcards-tab[aria-selected='true'] {
-  background: #2f6fed;
-  border-color: #2f6fed;
-  color: #fff;
+
+.premade-decks > p:first-child {
+  max-width: 46rem;
+  color: var(--pl-muted);
+  line-height: 1.6;
 }
 
 .premade-filters {
   display: flex;
   flex-wrap: wrap;
-  gap: 0.8889rem;
-  margin: 0.6667rem 0 1.1111rem;
+  gap: 1rem;
+  margin: 1.25rem 0 2rem;
 }
+
 .premade-filters label {
   display: flex;
   flex-direction: column;
-  gap: 0.2222rem;
-  font-size: 0.9rem;
+  gap: 0.35rem;
+  color: var(--pl-muted);
+  font-size: 0.8rem;
+  font-weight: 700;
+}
+
+.premade-category h2 {
+  margin: 0;
+  color: var(--pl-ink);
+  font-size: 1.3rem;
+  font-weight: 800;
+  letter-spacing: -0.03em;
 }
 
 .premade-category-desc {
-  margin-top: 0;
-  opacity: 0.75;
+  margin: 0.25rem 0 1rem;
+  color: var(--pl-muted);
 }
+
 .premade-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(13.3333rem, 1fr));
-  gap: 0.8889rem;
-  margin-bottom: 1.5556rem;
+  grid-template-columns: repeat(auto-fill, minmax(min(15rem, 100%), 1fr));
+  gap: 1rem;
+  margin-bottom: 2.25rem;
 }
+
 .premade-deck {
   display: flex;
   flex-direction: column;
-  gap: 0.3333rem;
-  padding: 0.8889rem;
-  border: 1px solid var(--border);
-  border-radius: 0.6667rem;
-  background: var(--code-bg);
+  gap: 0.5rem;
+  padding: 1.3rem;
+  border: 1px solid var(--pl-line);
+  border-radius: 1.25rem;
+  background: var(--pl-surface);
+  transition: transform 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease;
 }
+
+.premade-deck:hover {
+  border-color: var(--pl-accent);
+  transform: translateY(-3px);
+  box-shadow: var(--pl-shadow);
+}
+
 .premade-deck h3,
 .premade-deck p {
   margin: 0;
 }
+
+.premade-deck h3 {
+  color: var(--pl-ink);
+  font-size: 1.1rem;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+}
+
+.premade-deck p {
+  color: var(--pl-muted);
+  font-size: 0.92rem;
+  line-height: 1.5;
+}
+
+.premade-deck .premade-level-desc,
+.premade-deck .premade-meta {
+  font-size: 0.8rem;
+}
+
+.premade-deck .premade-meta {
+  font-weight: 700;
+}
+
 .premade-deck .flashcard-practice-start {
+  align-self: flex-start;
   margin-top: auto;
+  padding: 0.55rem 1.2rem;
+  font-size: 0.88rem;
 }
-.premade-level-desc,
-.premade-meta {
-  font-size: 0.85rem;
-  opacity: 0.75;
-}
+
 .premade-badge {
   align-self: flex-start;
-  padding: 2px 0.5556rem;
-  border-radius: 55.5rem;
-  font-size: 0.75rem;
-  font-weight: 600;
-  color: #fff;
+  padding: 0.2rem 0.65rem;
+  border-radius: 999px;
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
 }
-.premade-badge-beginner { background: #2e9d5b; }
-.premade-badge-intermediate { background: #d98a00; }
-.premade-badge-expert { background: #c9372c; }
+
+.premade-badge-beginner {
+  background: color-mix(in srgb, var(--fc-pass) 15%, transparent);
+  color: var(--fc-pass);
+}
+
+.premade-badge-intermediate {
+  background: color-mix(in srgb, var(--fc-learning) 18%, transparent);
+  color: color-mix(in srgb, var(--fc-learning) 80%, var(--pl-ink));
+}
+
+.premade-badge-expert {
+  background: color-mix(in srgb, var(--fc-fail) 15%, transparent);
+  color: var(--fc-fail);
+}

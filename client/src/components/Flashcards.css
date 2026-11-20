@@ -1,125 +1,429 @@
+/* The flashcards home, Browse, and card list pages. They share the landing
+   page's palette (the --pl-* variables, see appTheme.css); the practice page
+   further down keeps its own dark look. */
+
 .flashcards-page {
-  padding: 1.3333rem;
-  color: var(--text-h);
+  /* Card stages, chart series and pass / fail. New, young and mature
+     follow the color theme. */
+  --fc-new: var(--pl-accent-2);
+  --fc-learning: #e59a2f;
+  --fc-young: color-mix(in srgb, var(--pl-accent) 50%, var(--pl-surface));
+  --fc-mature: var(--pl-accent);
+  --fc-pass: #1f9e77;
+  --fc-fail: #e5566b;
+
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  /* Grow with the content, so the page background runs to the bottom */
+  flex: 1 0 auto;
+  color: var(--pl-ink);
 }
 
-.flashcards-back-btn {
-  padding: 0.3333rem 0.6667rem;
-  border: 1px solid var(--border);
-  border-radius: 0.3333rem;
-  background: var(--bg);
-  color: var(--text-h);
-  cursor: pointer;
+@media (prefers-color-scheme: dark) {
+  .flashcards-page {
+    --fc-learning: #f5b45a;
+    --fc-pass: #4fd1a5;
+    --fc-fail: #ff7d8f;
+  }
+}
+
+.flashcards-content {
+  width: min(80rem, 100%);
+  margin: 0 auto;
+  padding: 2rem 1.5rem 3rem;
 }
 
 .flashcards-page-header {
   display: flex;
-  align-items: center;
+  align-items: flex-end;
   justify-content: space-between;
   flex-wrap: wrap;
-  gap: 0.4444rem 0.8889rem;
-  margin-top: 0.6667rem;
+  gap: 1rem 1.5rem;
 }
 
 .flashcards-page-header h1 {
-  margin: 0;
+  margin: 0.7rem 0 0;
+  font-size: clamp(1.9rem, 3.6vw, 2.8rem);
+  line-height: 1.08;
+  letter-spacing: -0.04em;
+  color: var(--pl-ink);
 }
 
+.flashcards-page-header h1 em {
+  font-style: normal;
+  background: linear-gradient(90deg, var(--pl-accent), var(--pl-accent-2));
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+.flashcards-eyebrow {
+  display: inline-block;
+  padding: 0.3rem 0.75rem;
+  border-radius: 999px;
+  background: var(--pl-accent-soft);
+  color: var(--pl-accent);
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.flashcards-sub {
+  margin-top: 0.6rem;
+  color: var(--pl-muted);
+  font-size: 1.02rem;
+}
+
+.flashcards-count {
+  margin: 0;
+  color: var(--pl-muted);
+  font-size: 0.9rem;
+  font-weight: 600;
+}
+
+.flashcards-empty {
+  margin-top: 1.5rem;
+  color: var(--pl-muted);
+}
+
+.flashcards-page .error-text {
+  margin: 1rem 0;
+  padding: 0.75rem 0.9rem;
+  border-radius: 0.8rem;
+}
+
+/* Pill buttons, as on the landing page */
+
+.flashcards-header-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.6rem;
+}
+
+.flashcards-page .flashcard-browse-start,
+.flashcards-page .flashcard-practice-start {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  margin: 0;
+  padding: 0.7rem 1.3rem;
+  border: 1px solid var(--pl-line);
+  border-radius: 999px;
+  background: var(--pl-surface);
+  color: var(--pl-ink);
+  font-size: 0.95rem;
+  font-weight: 700;
+  transition: transform 0.15s ease, background-color 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+}
+
+.flashcards-page .flashcard-browse-start:hover {
+  border-color: var(--pl-accent);
+  color: var(--pl-accent);
+}
+
+.flashcards-page .flashcard-practice-start {
+  border-color: var(--pl-accent);
+  background: var(--pl-accent);
+  color: var(--pl-on-accent);
+  box-shadow: 0 10px 24px -12px var(--pl-accent);
+}
+
+.flashcards-page .flashcard-practice-start:hover {
+  border-color: var(--pl-accent-hover);
+  background: var(--pl-accent-hover);
+  transform: translateY(-1px);
+}
+
+.flashcards-page .flashcard-browse-start:focus-visible,
+.flashcards-page .flashcard-practice-start:focus-visible,
+.flashcards-page .flashcards-tab:focus-visible {
+  outline: 3px solid var(--pl-accent-2);
+  outline-offset: 2px;
+}
+
+/* Tabs */
+
+.flashcards-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem 1.25rem;
+  margin-top: 1.75rem;
+  padding: 0.6rem 0.75rem 0.6rem 0.6rem;
+  border: 1px solid var(--pl-line);
+  border-radius: 1.4rem;
+  background: var(--pl-surface);
+}
+
+.flashcards-page .flashcards-tabs {
+  display: flex;
+  gap: 0.25rem;
+  margin: 0;
+  padding: 0.25rem;
+  border-radius: 999px;
+  background: var(--pl-bg);
+}
+
+.flashcards-page .flashcards-tab {
+  padding: 0.5rem 1.15rem;
+  border: none;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--pl-muted);
+  font-size: 0.9rem;
+  font-weight: 700;
+  transition: background-color 0.15s ease, color 0.15s ease;
+}
+
+.flashcards-page .flashcards-tab:hover {
+  color: var(--pl-ink);
+}
+
+.flashcards-page .flashcards-tab[aria-selected='true'] {
+  background: var(--pl-accent);
+  color: var(--pl-on-accent);
+}
+
+.flashcards-page select {
+  padding: 0.45rem 2.1rem 0.45rem 0.9rem;
+  border: 1.5px solid var(--pl-line);
+  border-radius: 999px;
+  background: var(--pl-bg)
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%238a8799' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E")
+    no-repeat right 0.75rem center / 0.85rem;
+  color: var(--pl-ink);
+  font-size: 0.85rem;
+  font-weight: 600;
+  appearance: none;
+  cursor: pointer;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.flashcards-page select:hover {
+  border-color: var(--pl-accent);
+}
+
+.flashcards-page select:focus-visible {
+  outline: none;
+  border-color: var(--pl-accent);
+  box-shadow: 0 0 0 4px var(--pl-accent-soft);
+}
+
+/* Stats */
+
 .flashcard-stats-panel {
-  margin: 0.8889rem 0 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+  margin-top: 1.5rem;
 }
 
 .flashcard-stats {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(7.2222rem, 1fr));
-  gap: 0.4444rem;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 0.9rem;
   margin: 0;
 }
 
 .flashcard-stat {
-  padding: 0.5556rem 0.6667rem;
-  border: 1px solid var(--border);
-  border-radius: 0.4444rem;
-  background: var(--code-bg);
+  padding: 1.1rem 1.2rem;
+  border: 1px solid var(--pl-line);
+  border-radius: 1.25rem;
+  background: var(--pl-surface);
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+
+.flashcard-stat:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--pl-shadow);
+}
+
+.flashcard-stat-icon {
+  display: grid;
+  place-items: center;
+  width: 2.2rem;
+  height: 2.2rem;
+  margin-bottom: 0.8rem;
+  border-radius: 0.7rem;
+  background: var(--pl-accent-soft);
+  color: var(--pl-accent);
+  font-size: 1.05rem;
+}
+
+/* The three "due" tiles get the second accent */
+.flashcard-stat:nth-child(n + 6) .flashcard-stat-icon {
+  background: color-mix(in srgb, var(--pl-accent-2) 14%, transparent);
+  color: var(--pl-accent-2);
 }
 
 .flashcard-stat dt {
-  color: var(--text);
-  font-size: 0.6111rem;
-  font-weight: 600;
+  color: var(--pl-muted);
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
   text-transform: uppercase;
-  letter-spacing: 0.5px;
 }
 
 .flashcard-stat dd {
-  margin: 0.2222rem 0 0;
-  font-size: 1.2222rem;
-  font-weight: 600;
+  margin: 0.25rem 0 0;
+  color: var(--pl-ink);
+  font-size: 1.65rem;
+  font-weight: 800;
+  letter-spacing: -0.03em;
   font-variant-numeric: tabular-nums;
 }
 
 .flashcard-stat .flashcard-stat-note {
-  margin-top: 2px;
-  color: var(--text);
-  font-size: 0.6111rem;
-  font-weight: 400;
+  margin-top: 0.2rem;
+  color: var(--pl-muted);
+  font-size: 0.75rem;
+  font-weight: 500;
+  letter-spacing: 0;
+}
+
+.flashcard-stat-featured {
+  border-color: transparent;
+  background: linear-gradient(135deg, var(--pl-accent), var(--pl-accent-2));
+  box-shadow: 0 14px 30px -16px var(--pl-accent);
+}
+
+.flashcard-stat-featured .flashcard-stat-icon {
+  background: rgba(255, 255, 255, 0.2);
+  color: #fff;
+}
+
+.flashcard-stat-featured dt,
+.flashcard-stat-featured .flashcard-stat-note {
+  color: rgba(255, 255, 255, 0.85);
+}
+
+.flashcard-stat-featured dd {
+  color: #fff;
+}
+
+/* Panels: card stages, heatmap and charts */
+
+.flashcards-panel {
+  margin: 0;
+  padding: 1.4rem 1.5rem;
+  border: 1px solid var(--pl-line);
+  border-radius: 1.25rem;
+  background: var(--pl-surface);
+}
+
+.flashcards-panel-header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.25rem 1rem;
+}
+
+.flashcards-panel-title {
+  margin: 0;
+  color: var(--pl-ink);
+  font-size: 1.05rem;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+}
+
+.flashcards-panel-header figcaption {
+  color: var(--pl-muted);
+  font-size: 0.85rem;
+}
+
+.flashcard-stage-bar {
+  display: flex;
+  gap: 3px;
+  height: 0.75rem;
+  margin-top: 1rem;
+  border-radius: 999px;
+  background: var(--pl-line);
+  overflow: hidden;
+}
+
+.flashcard-stage-bar span {
+  flex-basis: 0;
+  min-width: 4px;
 }
 
 .flashcard-stages {
   display: flex;
   flex-wrap: wrap;
-  gap: 0.2222rem 0.8889rem;
-  margin: 0.6667rem 0 0;
+  gap: 0.5rem 1.5rem;
+  margin: 0.9rem 0 0;
   padding: 0;
   list-style: none;
-  color: var(--text);
-  font-size: 0.7222rem;
+  color: var(--pl-muted);
+  font-size: 0.88rem;
+}
+
+.flashcard-stages li {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
 }
 
 .flashcard-stages strong {
-  color: var(--text-h);
+  color: var(--pl-ink);
   font-variant-numeric: tabular-nums;
 }
 
 .flashcard-stage-dot {
   display: inline-block;
-  width: 0.4444rem;
-  height: 0.4444rem;
-  margin-right: 0.3333rem;
+  width: 0.6rem;
+  height: 0.6rem;
+  margin-right: 0.15rem;
   border-radius: 50%;
 }
 
-.flashcard-stage-new { background: #4a7fc1; }
-.flashcard-stage-learning { background: #c1773a; }
-.flashcard-stage-young { background: #7fb88f; }
-.flashcard-stage-mature { background: #2a7a4b; }
+.flashcard-stage-new { background: var(--fc-new); }
+.flashcard-stage-learning { background: var(--fc-learning); }
+.flashcard-stage-young { background: var(--fc-young); }
+.flashcard-stage-mature { background: var(--fc-mature); }
 
-.review-heatmap {
-  margin: 0.6667rem 0 0;
-}
-
-.review-heatmap figcaption {
-  margin-bottom: 0.3333rem;
-  color: var(--text);
-  font-size: 0.6667rem;
-}
+/* Heatmap */
 
 .review-heatmap-scroll {
+  margin-top: 1rem;
+  padding-bottom: 0.25rem;
   overflow-x: auto;
 }
 
 .review-heatmap-grid {
   display: grid;
-  grid-auto-flow: column;
-  grid-template-rows: repeat(7, 0.5556rem);
-  grid-auto-columns: 0.5556rem;
-  gap: 0.1667rem;
+  /* Columns, rows and gap are set inline (see heatmapSizes): weekday
+     names, then one column per week */
   width: max-content;
 }
 
+.review-heatmap-month {
+  /* Zero width so a name never widens its week's column */
+  width: 0;
+  padding-bottom: 0.3rem;
+  color: var(--pl-muted);
+  font-size: 0.68rem;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.review-heatmap-weekday {
+  /* Content width, so it can be measured */
+  justify-self: start;
+  align-self: center;
+  padding-right: 0.45rem;
+  color: var(--pl-muted);
+  font-size: 0.65rem;
+  line-height: 1;
+}
+
 .review-heatmap-day {
-  border-radius: 2px;
-  background: var(--border);
+  border-radius: 3px;
+  background: var(--pl-line);
 }
 
 button.review-heatmap-day {
@@ -130,65 +434,107 @@ button.review-heatmap-day {
 
 button.review-heatmap-day:hover,
 button.review-heatmap-day:focus-visible {
-  outline: 2px solid var(--text-h);
+  outline: 2px solid var(--pl-accent-2);
   outline-offset: 1px;
 }
 
-.review-heatmap-level-1 { background: rgba(42, 122, 75, 0.35); }
-.review-heatmap-level-2 { background: rgba(42, 122, 75, 0.55); }
-.review-heatmap-level-3 { background: rgba(42, 122, 75, 0.8); }
-.review-heatmap-level-4 { background: #2a7a4b; }
+.review-heatmap-level-0 { background: color-mix(in srgb, var(--pl-line) 75%, var(--pl-surface)); }
+.review-heatmap-level-1 { background: color-mix(in srgb, var(--pl-accent) 28%, var(--pl-surface)); }
+.review-heatmap-level-2 { background: color-mix(in srgb, var(--pl-accent) 52%, var(--pl-surface)); }
+.review-heatmap-level-3 { background: color-mix(in srgb, var(--pl-accent) 76%, var(--pl-surface)); }
+.review-heatmap-level-4 { background: var(--pl-accent); }
 
-.flashcards-search {
-  box-sizing: border-box;
-  width: 100%;
-  max-width: 26.6667rem;
-  margin: 0.2222rem 0 0.6667rem;
-  padding: 0.4444rem 0.6667rem;
-  border: 1px solid var(--border);
-  border-radius: 0.3333rem;
-  background: var(--bg);
-  color: var(--text-h);
-  font: inherit;
-  font-size: 0.7778rem;
+.review-heatmap-today {
+  box-shadow: inset 0 0 0 1.5px var(--pl-accent-2);
 }
 
-.flashcards-count {
-  margin: 0.5556rem 0;
-  color: var(--text);
-  font-size: 0.7222rem;
+.review-heatmap-legend {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0.3rem;
+  margin-top: 0.75rem;
+  color: var(--pl-muted);
+  font-size: 0.72rem;
+}
+
+.review-heatmap-legend .review-heatmap-day {
+  width: 0.75rem;
+  height: 0.75rem;
+}
+
+/* Browse and card list */
+
+.flashcards-search-wrap {
+  position: relative;
+  max-width: 30rem;
+  margin: 1.5rem 0 1rem;
+}
+
+.flashcards-search-wrap .icon {
+  position: absolute;
+  top: 50%;
+  left: 1rem;
+  color: var(--pl-muted);
+  font-size: 1rem;
+  transform: translateY(-50%);
+  pointer-events: none;
+}
+
+.flashcards-search {
+  width: 100%;
+  padding: 0.7rem 1rem 0.7rem 2.6rem;
+  border: 1.5px solid var(--pl-line);
+  border-radius: 999px;
+  background: var(--pl-surface);
+  color: var(--pl-ink);
+  font-size: 0.95rem;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.flashcards-search:focus {
+  outline: none;
+  border-color: var(--pl-accent);
+  box-shadow: 0 0 0 4px var(--pl-accent-soft);
+}
+
+.flashcards-page-header + .flashcards-table,
+.flashcards-page-header ~ .flashcards-count {
+  margin-top: 1.5rem;
 }
 
 .flashcards-table {
-  border: 1px solid var(--border);
-  border-radius: 0.4444rem;
+  border: 1px solid var(--pl-line);
+  border-radius: 1.25rem;
+  background: var(--pl-surface);
+  box-shadow: var(--pl-shadow);
   overflow: hidden;
 }
 
 .flashcards-table-header,
 .flashcards-row {
   display: grid;
-  grid-template-columns: minmax(6.1111rem, 1fr) minmax(4.4444rem, 1fr) minmax(8.8889rem, 3fr) 3.1111rem 6.6667rem 3.5556rem 2.8889rem 3.5556rem 8.3333rem;
-  gap: 0.6667rem;
+  grid-template-columns: minmax(6.1111rem, 1fr) minmax(4.4444rem, 1fr) minmax(8.8889rem, 3fr) 3.1111rem 6.6667rem 3.5556rem 2.8889rem 3.5556rem 4.6rem;
+  gap: 0.75rem;
   align-items: center;
-  padding: 0 0.6667rem;
+  padding: 0 1rem;
 }
 
 .flashcards-table-header {
-  height: 1.8889rem;
-  border-bottom: 1px solid var(--border);
-  background: var(--code-bg);
-  color: var(--text);
-  font-size: 0.6111rem;
-  font-weight: 600;
+  height: 2.6rem;
+  border-bottom: 1px solid var(--pl-line);
+  background: var(--pl-bg);
+  color: var(--pl-muted);
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
   text-transform: uppercase;
-  letter-spacing: 0.5px;
 }
 
 .flashcards-table-scroll {
   /* The table has the Browse page to itself, so fill the window below the
-     header and search box */
-  height: max(13.3333rem, calc(100vh - 13.3333rem));
+     top bar, header and search box */
+  height: max(13.3333rem, calc(100vh - 19rem));
   overflow-y: auto;
 }
 
@@ -205,8 +551,13 @@ button.review-heatmap-day:focus-visible {
 }
 
 .flashcards-row {
-  border-bottom: 1px solid var(--border);
-  font-size: 0.7222rem;
+  border-bottom: 1px solid var(--pl-line);
+  font-size: 0.85rem;
+  transition: background-color 0.1s ease;
+}
+
+.flashcards-row:hover {
+  background: color-mix(in srgb, var(--pl-accent) 5%, var(--pl-surface));
 }
 
 .flashcards-row:last-child {
@@ -217,17 +568,14 @@ button.review-heatmap-day:focus-visible {
   overflow: hidden;
   white-space: nowrap;
   text-overflow: ellipsis;
-  color: var(--text-h);
-}
-
-.flashcards-cell-definition {
-  color: var(--text);
+  color: var(--pl-ink);
 }
 
 .flashcards-cell-word {
   display: flex;
   align-items: center;
-  gap: 0.3333rem;
+  gap: 0.4rem;
+  font-weight: 600;
 }
 
 .flashcards-cell-word > span {
@@ -235,73 +583,72 @@ button.review-heatmap-day:focus-visible {
   text-overflow: ellipsis;
 }
 
+.flashcards-cell-definition,
+.flashcards-cell-due,
 .flashcards-cell-number {
-  color: var(--text);
-  font-size: 0.6667rem;
+  color: var(--pl-muted);
+}
+
+.flashcards-cell-due,
+.flashcards-cell-number {
+  font-size: 0.78rem;
   font-variant-numeric: tabular-nums;
 }
 
 .flashcard-leech-badge {
   flex-shrink: 0;
-  padding: 1px 0.3333rem;
-  border: 1px solid #b4443a;
-  border-radius: 55.5rem;
+  padding: 0.05rem 0.45rem;
+  border: 1px solid var(--fc-fail);
+  border-radius: 999px;
   background: transparent;
-  color: #b4443a;
-  font-size: 0.5556rem;
-  font-weight: 600;
-  cursor: pointer;
+  color: var(--fc-fail);
+  font-size: 0.62rem;
+  font-weight: 700;
 }
 
 .flashcard-leech-badge:hover {
-  background: #b4443a;
-  color: white;
-}
-
-.flashcards-cell-due {
-  color: var(--text);
-  font-size: 0.6667rem;
+  background: var(--fc-fail);
+  color: #fff;
 }
 
 .flashcards-row-actions {
   display: flex;
-  gap: 0.3333rem;
+  gap: 0.35rem;
   overflow: visible;
 }
 
+.flashcard-edit-btn,
 .flashcard-remove {
-  padding: 0.2222rem 0.5556rem;
-  border: 1px solid #d33;
-  border-radius: 0.3333rem;
-  background: white;
-  color: #c22;
-  cursor: pointer;
-  font-size: 0.6667rem;
+  display: grid;
+  place-items: center;
+  width: 1.65rem;
+  height: 1.65rem;
+  padding: 0;
+  border: 1px solid var(--pl-line);
+  border-radius: 50%;
+  background: var(--pl-surface);
+  color: var(--pl-muted);
+  font-size: 0.8rem;
+  transition: border-color 0.15s ease, color 0.15s ease, background-color 0.15s ease;
 }
 
-.flashcard-remove:hover {
-  background: #c22;
-  color: white;
-}
-
-.flashcards-empty {
-  margin-top: 1.3333rem;
-  color: #777;
-}
-
-.flashcard-edit-btn {
-  padding: 0.2222rem 0.5556rem;
-  border: 1px solid #bbb;
-  border-radius: 0.3333rem;
-  background: white;
-  color: #222;
-  cursor: pointer;
-  font-size: 0.6667rem;
+.flashcard-edit-btn .icon,
+.flashcard-remove .icon {
+  display: block;
 }
 
 .flashcard-edit-btn:hover {
-  background: #f2f2f2;
+  border-color: var(--pl-accent);
+  color: var(--pl-accent);
 }
+
+.flashcard-remove:hover {
+  border-color: var(--fc-fail);
+  background: color-mix(in srgb, var(--fc-fail) 12%, var(--pl-surface));
+  color: var(--fc-fail);
+}
+
+/* The edit dialog on the Browse and card list pages */
 
 .flashcard-row-edit-backdrop {
   position: fixed;
@@ -310,87 +657,94 @@ button.review-heatmap-day:focus-visible {
   display: flex;
   align-items: center;
   justify-content: center;
-  background: rgba(0, 0, 0, 0.4);
+  background: color-mix(in srgb, var(--theme-dark-bg) 50%, transparent);
+  backdrop-filter: blur(4px);
 }
 
 .flashcard-row-edit-dialog {
-  width: min(100% - 1.7778rem, 23.3333rem);
+  width: min(100% - 2rem, 26rem);
   display: flex;
   flex-direction: column;
-  gap: 0.6667rem;
-  padding: 1.1111rem;
-  border-radius: 0.5556rem;
-  background: var(--bg);
-  color: var(--text-h);
-  box-shadow: 0 0.4444rem 1.3333rem rgba(0, 0, 0, 0.2);
+  gap: 1rem;
+  padding: 1.75rem;
+  border: 1px solid var(--pl-line);
+  border-radius: 1.5rem;
+  background: var(--pl-surface);
+  color: var(--pl-ink);
+  box-shadow: var(--pl-shadow);
 }
 
 .flashcard-row-edit-dialog h2 {
   margin: 0;
-  font-size: 1rem;
+  font-size: 1.35rem;
+  font-weight: 800;
+  letter-spacing: -0.03em;
 }
 
 .flashcard-row-edit-dialog label {
   display: flex;
   flex-direction: column;
-  gap: 0.2222rem;
-  font-size: 0.6667rem;
-  color: var(--text);
+  gap: 0.35rem;
+  color: var(--pl-ink);
+  font-size: 0.82rem;
+  font-weight: 700;
 }
 
 .flashcard-row-edit-dialog input,
 .flashcard-row-edit-dialog textarea {
-  padding: 0.4444rem 0.5556rem;
-  border: 1px solid var(--border);
-  border-radius: 0.3333rem;
-  background: var(--bg);
-  color: var(--text-h);
-  font: inherit;
-  font-size: 0.7778rem;
+  padding: 0.7rem 0.85rem;
+  border: 1.5px solid var(--pl-line);
+  border-radius: 0.8rem;
+  background: var(--pl-bg);
+  color: var(--pl-ink);
+  font-size: 0.9rem;
+  font-weight: 400;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.flashcard-row-edit-dialog input:focus,
+.flashcard-row-edit-dialog textarea:focus {
+  outline: none;
+  border-color: var(--pl-accent);
+  box-shadow: 0 0 0 4px var(--pl-accent-soft);
 }
 
 .flashcard-row-edit-actions {
   display: flex;
   justify-content: flex-end;
-  gap: 0.4444rem;
-  margin-top: 0.2222rem;
+  gap: 0.5rem;
+  margin-top: 0.25rem;
 }
 
 .flashcard-row-edit-actions button {
-  padding: 0.4444rem 0.8889rem;
-  border: none;
-  border-radius: 0.3333rem;
-  cursor: pointer;
-  font-size: 0.7222rem;
+  padding: 0.65rem 1.25rem;
+  border: 1px solid transparent;
+  border-radius: 999px;
+  font-size: 0.9rem;
+  font-weight: 700;
 }
 
 .flashcard-row-edit-actions button[type='submit'] {
-  background: var(--accent);
-  color: #fff;
-  font-weight: 600;
+  background: var(--pl-accent);
+  color: var(--pl-on-accent);
+}
+
+.flashcard-row-edit-actions button[type='submit']:hover {
+  background: var(--pl-accent-hover);
 }
 
 .flashcard-row-edit-actions button[type='button'] {
-  border: 1px solid var(--border);
-  background: var(--bg);
-  color: var(--text-h);
+  border-color: var(--pl-line);
+  background: var(--pl-surface);
+  color: var(--pl-ink);
 }
 
-.flashcards-header-actions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.4444rem;
+.flashcard-row-edit-actions button[type='button']:hover {
+  border-color: var(--pl-accent);
+  color: var(--pl-accent);
 }
 
-.flashcard-browse-start {
-  margin-top: 0.4444rem;
-  padding: 0.4444rem 0.8889rem;
-  border: 1px solid var(--border);
-  border-radius: 0.3333rem;
-  background: var(--bg);
-  color: var(--text-h);
-  cursor: pointer;
-}
+/* Practice page */
 
 .flashcard-practice-start {
   margin-top: 0.4444rem;
@@ -505,6 +859,23 @@ button.review-heatmap-day:focus-visible {
   background: transparent;
   color: inherit;
   cursor: pointer;
+}
+
+/* The play button: just a round button with a play arrow */
+.anki-audio-btn:not(:disabled) {
+  display: grid;
+  place-items: center;
+  width: 2.6rem;
+  height: 2.6rem;
+  padding: 0;
+  border-radius: 50%;
+  font-size: 1rem;
+}
+
+.anki-audio-btn .icon {
+  display: block;
+  /* The triangle's visual center sits left of its box's */
+  margin-left: 0.12em;
 }
 
 .anki-audio-btn:disabled {
@@ -855,20 +1226,46 @@ button.review-heatmap-day:focus-visible {
   color: white;
 }
 
-/* Activity charts, below the review heatmap */
+/* Activity charts, below the review heatmap. One time frame control, in
+   the header above them, sets every chart's range. */
+
+.activity-charts-header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.6rem 1rem;
+  margin-bottom: 0.9rem;
+}
+
+.activity-charts-header .activity-chart-ranges {
+  border: 1px solid var(--pl-line);
+  background: var(--pl-surface);
+}
+
+.activity-charts-header .activity-chart-ranges button {
+  padding: 0.4rem 0.9rem;
+  font-size: 0.8rem;
+}
+
+.activity-charts-header .activity-chart-ranges button[aria-pressed='true'] {
+  background: var(--pl-accent);
+  color: var(--pl-on-accent);
+  box-shadow: none;
+}
 
 .activity-charts {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(min(17.7778rem, 100%), 1fr));
-  gap: 0.6667rem;
-  margin-top: 0.8889rem;
+  grid-template-columns: repeat(auto-fit, minmax(min(24rem, 100%), 1fr));
+  gap: 1.25rem;
 }
 
 .activity-chart {
   margin: 0;
-  padding: 0.6667rem;
-  border: 1px solid var(--border);
-  border-radius: 0.4444rem;
+  padding: 1.4rem 1.5rem;
+  border: 1px solid var(--pl-line);
+  border-radius: 1.25rem;
+  background: var(--pl-surface);
 }
 
 .activity-chart-header {
@@ -876,50 +1273,61 @@ button.review-heatmap-day:focus-visible {
   flex-wrap: wrap;
   align-items: flex-start;
   justify-content: space-between;
-  gap: 0.4444rem;
+  gap: 0.6rem;
 }
 
 .activity-chart-header figcaption {
   display: flex;
   flex-direction: column;
-  font-size: 0.7778rem;
+  gap: 0.15rem;
+}
+
+.activity-chart-header figcaption strong {
+  color: var(--pl-ink);
+  font-size: 1.05rem;
+  font-weight: 800;
+  letter-spacing: -0.02em;
 }
 
 .activity-chart-summary {
-  color: var(--text);
-  font-size: 0.6667rem;
+  color: var(--pl-muted);
+  font-size: 0.85rem;
 }
 
 .activity-chart-ranges {
   display: flex;
-  border: 1px solid var(--border);
-  border-radius: 0.3333rem;
-  overflow: hidden;
+  gap: 0.15rem;
+  padding: 0.2rem;
+  border-radius: 999px;
+  background: var(--pl-bg);
 }
 
 .activity-chart-ranges button {
-  padding: 0.1667rem 0.4444rem;
+  padding: 0.3rem 0.7rem;
   border: none;
-  background: var(--bg);
-  color: var(--text);
-  font-size: 0.6111rem;
-  cursor: pointer;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--pl-muted);
+  font-size: 0.72rem;
+  font-weight: 700;
+  white-space: nowrap;
+  transition: background-color 0.15s ease, color 0.15s ease;
 }
 
-.activity-chart-ranges button + button {
-  border-left: 1px solid var(--border);
+.activity-chart-ranges button:hover {
+  color: var(--pl-ink);
 }
 
 .activity-chart-ranges button[aria-pressed='true'] {
-  background: var(--code-bg);
-  color: var(--text-h);
-  font-weight: 600;
+  background: var(--pl-surface);
+  color: var(--pl-accent);
+  box-shadow: 0 1px 4px -1px color-mix(in srgb, var(--pl-ink) 25%, transparent);
 }
 
 .activity-chart-body {
   display: flex;
-  gap: 0.3333rem;
-  margin-top: 0.7778rem;
+  gap: 0.5rem;
+  margin-top: 1.25rem;
 }
 
 /* Tick labels, each centered on its gridline; as tall as the plot */
@@ -927,9 +1335,9 @@ button.review-heatmap-day:focus-visible {
   position: relative;
   flex-shrink: 0;
   min-width: 1.3333rem;
-  height: 6.6667rem;
-  color: var(--text);
-  font-size: 0.5556rem;
+  height: 9rem;
+  color: var(--pl-muted);
+  font-size: 0.68rem;
   font-variant-numeric: tabular-nums;
   text-align: right;
 }
@@ -948,49 +1356,57 @@ button.review-heatmap-day:focus-visible {
 }
 
 .activity-chart-plot {
-  border-bottom: 1px solid var(--border);
-  border-left: 1px solid var(--border);
+  border-bottom: 1.5px solid var(--pl-line);
 }
 
 .activity-chart-plot svg {
   display: block;
   width: 100%;
-  height: 6.6667rem;
+  height: 9rem;
 }
 
 .activity-chart-gridline {
-  stroke: var(--border);
+  stroke: var(--pl-line);
   stroke-width: 1;
-  stroke-dasharray: 3 3;
+  stroke-dasharray: 4 4;
 }
 
-.activity-chart-bar { fill: #2a7a4b; }
-.activity-chart-bar-added { fill: #4a7fc1; }
-.activity-chart-bar-due { fill: #c1773a; }
-.activity-chart-bar-passed { fill: #7fb88f; background: #7fb88f; }
-.activity-chart-bar-failed { fill: #c9574c; background: #c9574c; }
+/* Bar gradients, top to bottom, per chart */
+.activity-chart-added .activity-chart-stop-top { stop-color: var(--fc-new); }
+.activity-chart-added .activity-chart-stop-bottom { stop-color: color-mix(in srgb, var(--fc-new) 45%, var(--pl-surface)); }
+.activity-chart-reviews .activity-chart-stop-top { stop-color: var(--pl-accent); }
+.activity-chart-reviews .activity-chart-stop-bottom { stop-color: var(--pl-accent-2); }
+.activity-chart-due .activity-chart-stop-top { stop-color: var(--fc-learning); }
+.activity-chart-due .activity-chart-stop-bottom { stop-color: color-mix(in srgb, var(--fc-learning) 45%, var(--pl-surface)); }
+
+.activity-chart-bar {
+  transition: opacity 0.12s ease;
+}
+
+.activity-chart-bar-passed { fill: var(--fc-pass); background: var(--fc-pass); }
+.activity-chart-bar-failed { fill: var(--fc-fail); background: var(--fc-fail); }
 
 .activity-chart-legend {
   display: flex;
-  gap: 0.6667rem;
-  margin: 0.3333rem 0 0;
+  gap: 1rem;
+  margin: 0.75rem 0 0;
   padding: 0;
   list-style: none;
-  color: var(--text);
-  font-size: 0.6111rem;
+  color: var(--pl-muted);
+  font-size: 0.78rem;
 }
 
 .activity-chart-legend li {
   display: flex;
   align-items: center;
-  gap: 0.2222rem;
+  gap: 0.35rem;
 }
 
 .activity-chart-swatch {
   display: inline-block;
-  width: 0.5556rem;
-  height: 0.5556rem;
-  border-radius: 2px;
+  width: 0.7rem;
+  height: 0.7rem;
+  border-radius: 3px;
 }
 
 .activity-chart-bar-group {
@@ -1004,20 +1420,20 @@ button.review-heatmap-day:focus-visible {
 
 .activity-chart-bar-group:hover .activity-chart-hit,
 .activity-chart-bar-group:focus-visible .activity-chart-hit {
-  fill: var(--code-bg);
+  fill: var(--pl-accent-soft);
 }
 
 .activity-chart-bar-group:hover .activity-chart-bar,
 .activity-chart-bar-group:focus-visible .activity-chart-bar {
-  opacity: 0.75;
+  opacity: 0.8;
 }
 
 .activity-chart-axis {
   display: flex;
   justify-content: space-between;
-  margin-top: 0.2222rem;
-  color: var(--text);
-  font-size: 0.5556rem;
+  margin-top: 0.45rem;
+  color: var(--pl-muted);
+  font-size: 0.7rem;
 }
 
 /* The card list page (from the heatmap and activity charts): the Browse
@@ -1025,41 +1441,46 @@ button.review-heatmap-day:focus-visible {
 
 .flashcards-list-table .flashcards-table-header,
 .flashcards-list-table .flashcards-row {
-  grid-template-columns: minmax(6.1111rem, 1fr) minmax(4.4444rem, 1fr) minmax(8.8889rem, 3fr) 8.3333rem 6.1111rem 4.4444rem;
+  grid-template-columns: minmax(6.1111rem, 1fr) minmax(4.4444rem, 1fr) minmax(8.8889rem, 3fr) 8.3333rem 6.1111rem 3rem;
 }
 
 .flashcards-list-table .flashcards-table-scroll {
   height: auto;
-  max-height: max(13.3333rem, calc(100vh - 13.3333rem));
+  max-height: max(13.3333rem, calc(100vh - 17rem));
 }
 
 .flashcard-day-grades {
   display: flex;
-  gap: 0.2222rem;
+  gap: 0.25rem;
   overflow: hidden;
 }
 
 .flashcard-day-grade {
   flex-shrink: 0;
-  padding: 1px 0.4444rem;
-  border-radius: 55.5rem;
-  font-size: 0.6111rem;
-  font-weight: 600;
+  padding: 0.05rem 0.5rem;
+  border-radius: 999px;
+  font-size: 0.68rem;
+  font-weight: 700;
 }
 
 .flashcard-day-grade-pass {
-  background: rgba(42, 122, 75, 0.15);
-  color: #2a7a4b;
+  background: color-mix(in srgb, var(--fc-pass) 15%, transparent);
+  color: var(--fc-pass);
 }
 
 .flashcard-day-grade-fail {
-  background: rgba(180, 68, 58, 0.15);
-  color: #b4443a;
+  background: color-mix(in srgb, var(--fc-fail) 15%, transparent);
+  color: var(--fc-fail);
 }
 
-.practice-mode { display: flex; align-items: center; gap: 0.75rem; margin: 1rem 0; }
 .typed-answer { display: grid; gap: 0.75rem; width: min(100%, 28rem); margin: 1rem auto; }
 .typed-answer input { font-size: 1.25rem; padding: 0.75rem; }
+
+@media (max-width: 900px) {
+  .flashcard-stats {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
 
 /* Narrow screens: let the wide browse table scroll sideways instead of clipping */
 @media (max-width: 960px) {
@@ -1074,7 +1495,24 @@ button.review-heatmap-day:focus-visible {
 }
 
 @media (max-width: 480px) {
-  .flashcards-page {
-    padding: 0.8889rem 0.6667rem;
+  .flashcards-content {
+    padding: 1.25rem 0.75rem 2rem;
+  }
+
+  .flashcards-toolbar {
+    border-radius: 1.1rem;
+  }
+
+  .flashcard-stat {
+    padding: 0.9rem 1rem;
+  }
+
+  .flashcard-stat dd {
+    font-size: 1.35rem;
+  }
+
+  .flashcards-panel,
+  .activity-chart {
+    padding: 1.1rem 1rem;
   }
 }

@@ -9,6 +9,81 @@
 
 .reader-page .topbar { gap: 0.5rem; flex-wrap: wrap; }
 .reader-page .topbar-actions { flex-wrap: wrap; gap: 0.4rem; }
+
+/* A slim, quiet bar while reading that matches the progress line under it:
+   the reader's own grays instead of the app's colors, a small grayscale
+   logo and plain icons */
+.reader-page header.topbar {
+  --pl-surface: var(--bg);
+  --pl-bg: var(--code-bg);
+  --pl-line: var(--border);
+  --pl-ink: var(--text-h);
+  --pl-muted: var(--text);
+  --pl-accent: var(--text-h);
+  --pl-accent-soft: var(--code-bg);
+  --pl-accent-2: var(--text);
+  padding: 0.3rem 1.5rem;
+}
+
+.reader-page header.topbar .topbar-logo {
+  gap: 0.4rem;
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: var(--pl-muted);
+  filter: grayscale(1);
+  opacity: 0.85;
+  transition: opacity 0.15s ease;
+}
+
+.reader-page header.topbar .topbar-logo:hover {
+  opacity: 1;
+}
+
+.reader-page header.topbar .topbar-logo::before {
+  width: 1.3rem;
+  height: 1.3rem;
+  border-radius: 0.4rem;
+  font-size: 0.7rem;
+}
+
+.reader-page header.topbar .topbar-actions {
+  gap: 0.15rem;
+}
+
+.reader-page header.topbar .topbar-icon-btn {
+  width: 1.75rem;
+  height: 1.75rem;
+  border-color: transparent;
+  background: transparent;
+  color: var(--pl-muted);
+  font-size: 0.95rem;
+}
+
+.reader-page header.topbar .topbar-icon-btn:hover {
+  background: var(--pl-bg);
+  color: var(--pl-ink);
+}
+
+.reader-page header.topbar .topbar-icon-btn[aria-expanded='true'] {
+  border-color: transparent;
+  background: var(--pl-accent-soft);
+  color: var(--pl-accent);
+}
+
+.reader-page header.topbar .topbar-badge {
+  top: -0.15rem;
+  right: -0.2rem;
+  min-width: 0.9rem;
+  height: 0.9rem;
+  padding: 0 0.2rem;
+  font-size: 0.55rem;
+  line-height: 0.9rem;
+}
+
+.reader-page header.topbar [data-tip]::after {
+  top: calc(100% + 0.35rem);
+  font-size: 0.7rem;
+}
 .reading-progress { padding: 0.35rem 1.5rem; font-size: 0.8rem; border-bottom: 1px solid var(--border); }
 .reading-storage-error { padding: 0.5rem 1.5rem; color: #b3261e; }
 .bookmarks-panel {

@@ -91,6 +91,14 @@ function sumDays(counts, { start, end }) {
 export const countSeries = (counts, buckets) =>
   buckets.map((bucket) => ({ ...bucket, value: sumDays(counts, bucket) }))
 
+// The average count per day across count-series bars: the total over every
+// day the bars cover, from the first bar's start to the last bar's end
+export function perDayAverage(bars) {
+  if (bars.length === 0) return 0
+  const days = daysBetween(bars[0].start, bars.at(-1).end) + 1
+  return bars.reduce((sum, bar) => sum + bar.value, 0) / days
+}
+
 // The cards behind a bar of the "Cards added" or "Coming due" chart, counted
 // the same way the server counts them (see activityHistory in
 // server/src/flashcardStats.js): by local practice day, with overdue cards

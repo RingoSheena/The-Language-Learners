@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { cardsAddedIn, cardsDueIn, formatDayKey } from '../activityCharts.js'
 import { matchesTerms, queryTerms, searchableText } from '../cardSearch.js'
 import { isKanaOnly, kanaToRomaji, romajiToKana, checkReadingAnswer } from '../kana.js'
@@ -20,8 +20,25 @@ import {
   RECENT_BUFFER_SIZE,
   reviewCard,
 } from '../../../shared/srs.js'
+import TopBar, { TopBarButton } from '../TopBar.jsx'
 import ActivityCharts from './ActivityCharts.jsx'
 import PremadeDecks from './PremadeDecks.jsx'
+import RetentionSettings from './RetentionSettings.jsx'
+import {
+  BackIcon,
+  CalendarIcon,
+  CheckIcon,
+  ClockIcon,
+  EditIcon,
+  FlameIcon,
+  PlayIcon,
+  SearchIcon,
+  SettingsIcon,
+  TableIcon,
+  TargetIcon,
+  TrashIcon,
+  TrendIcon,
+} from './icons.jsx'
 import './Flashcards.css'
 
 // Practice only asks pass or fail. A pass is scheduled as the algorithm's
@@ -33,6 +50,66 @@ const PRACTICE_GRADES = [
 ]
 const DEFAULT_PRACTICE_HOTKEYS = { fail: '1', pass: '2' }
 const PRACTICE_HOTKEYS_STORAGE_KEY = 'flashcards-practice-hotkeys'
+
+// The practice options on the settings page; the first of each is the default
+const PRACTICE_MODES = [
+  { value: 'flip', label: 'Flip cards' },
+  { value: 'type', label: 'Type answer' },
+]
+const PRACTICE_ORDERS = [
+  { value: 'scheduled', label: 'Scheduled' },
+  { value: 'random', label: 'Random' },
+]
+const PRACTICE_MODE_STORAGE_KEY = 'flashcards-practice-mode'
+const PRACTICE_ORDER_STORAGE_KEY = 'flashcards-practice-order'
+
+// One of `options`' values, saved under `key` so it's kept between visits.
+// Falls back to the first option when storage is unavailable or holds
+// something that isn't an option.
+function useStoredChoice(key, options) {
+  const [value, setValue] = useState(() => {
+    try {
+      const saved = window.localStorage.getItem(key)
+      if (options.some((option) => option.value === saved)) return saved
+    } catch {
+      // Use the default
+    }
+    return options[0].value
+  })
+
+  useEffect(() => {
+    try {
+      window.localStorage.setItem(key, value)
+    } catch {
+      // The choice still applies for this visit
+    }
+  }, [key, value])
+
+  return [value, setValue]
+}
+
+// One practice option on the settings page: a titled card with a short
+// explanation and a button per choice
+function ChoiceToggle({ title, description, value, options, onChange }) {
+  return (
+    <div className="setting-option">
+      <h3>{title}</h3>
+      <p className="setting-option-help">{description}</p>
+      <div className="setting-toggle" role="group" aria-label={title}>
+        {options.map((option) => (
+          <button
+            key={option.value}
+            type="button"
+            aria-pressed={value === option.value}
+            onClick={() => onChange(option.value)}
+          >
+            {option.label}
+          </button>
+        ))}
+      </div>
+    </div>
+  )
+}
 // D and E are reserved for exiting practice and editing the current card.
 const RESERVED_HOTKEYS = ['D', 'E']
 
@@ -167,7 +244,7 @@ function PronunciationButton({ card }) {
       aria-label={`Play pronunciation of ${card.japanese}`}
       title="Play pronunciation (click again to replay)"
     >
-      {speaking ? '🔊 Playing…' : '🔊 Play audio'}
+      <PlayIcon />
     </button>
   )
 }
@@ -221,12 +298,15 @@ function PracticeStats({ stats, onOpenCards }) {
       label: 'Streak',
       value: `${streak.current} ${streak.current === 1 ? 'day' : 'days'}`,
       note: streakNote(streak),
+      icon: <FlameIcon />,
+      featured: true,
     },
-    { label: 'Reviewed today', value: stats.today.reviews },
-    { label: 'Time today', value: formatDuration(stats.today.timeMs) },
+    { label: 'Reviewed today', value: stats.today.reviews, icon: <CheckIcon /> },
+    { label: 'Time today', value: formatDuration(stats.today.timeMs), icon: <ClockIcon /> },
     {
       label: 'Daily average (7 days)',
       value: Math.round(stats.week.averagePerDay * 10) / 10,
+      icon: <TrendIcon />,
     },
     {
       label: 'Retention (30 days)',
@@ -235,17 +315,24 @@ function PracticeStats({ stats, onOpenCards }) {
         stats.retention.rate === null
           ? 'No mature cards reviewed yet'
           : 'Mature cards not failed',
+      icon: <TargetIcon />,
     },
-    { label: 'Due today', value: stats.due.today },
-    { label: 'Due tomorrow', value: stats.due.tomorrow },
-    { label: 'Due this week', value: stats.due.week },
+    { label: 'Due today', value: stats.due.today, icon: <CalendarIcon /> },
+    { label: 'Due tomorrow', value: stats.due.tomorrow, icon: <CalendarIcon /> },
+    { label: 'Due this week', value: stats.due.week, icon: <CalendarIcon /> },
   ]
+
+  const totalCards = CARD_STAGES.reduce((sum, { stage }) => sum + stats.cards[stage], 0)
 
   return (
     <section className="flashcard-stats-panel" aria-label="Practice stats">
       <dl className="flashcard-stats">
-        {items.map(({ label, value, note }) => (
-          <div className="flashcard-stat" key={label}>
+        {items.map(({ label, value, note, icon, featured }) => (
+          <div
+            className={`flashcard-stat${featured ? ' flashcard-stat-featured' : ''}`}
+            key={label}
+          >
+            <span className="flashcard-stat-icon" aria-hidden="true">{icon}</span>
             <dt>{label}</dt>
             <dd>{value}</dd>
             {note && <dd className="flashcard-stat-note">{note}</dd>}
@@ -253,14 +340,29 @@ function PracticeStats({ stats, onOpenCards }) {
         ))}
       </dl>
 
-      <ul className="flashcard-stages">
-        {CARD_STAGES.map(({ stage, label, hint }) => (
-          <li key={stage} title={hint}>
-            <span className={`flashcard-stage-dot flashcard-stage-${stage}`} />
-            {label} <strong>{stats.cards[stage]}</strong>
-          </li>
-        ))}
-      </ul>
+      <section className="flashcards-panel">
+        <h2 className="flashcards-panel-title">Card stages</h2>
+        {/* Each stage's share of the deck */}
+        <div className="flashcard-stage-bar" aria-hidden="true">
+          {CARD_STAGES.map(({ stage }) =>
+            stats.cards[stage] > 0 ? (
+              <span
+                key={stage}
+                className={`flashcard-stage-${stage}`}
+                style={{ flexGrow: stats.cards[stage] / Math.max(1, totalCards) }}
+              />
+            ) : null
+          )}
+        </div>
+        <ul className="flashcard-stages">
+          {CARD_STAGES.map(({ stage, label, hint }) => (
+            <li key={stage} title={hint}>
+              <span className={`flashcard-stage-dot flashcard-stage-${stage}`} />
+              {label} <strong>{stats.cards[stage]}</strong>
+            </li>
+          ))}
+        </ul>
+      </section>
 
       <ReviewHeatmap
         heatmap={stats.heatmap}
@@ -277,6 +379,20 @@ function PracticeStats({ stats, onOpenCards }) {
 }
 
 const HEATMAP_WEEKS = 53
+// Smallest square, in CSS pixels; below it the heatmap scrolls sideways
+const HEATMAP_MIN_CELL = 10
+const HEATMAP_GAP = 3
+
+// Square and gap sizes that fill `width` with `weeks` columns, rounded to
+// whole device pixels. Fractional sizes would land each square on a
+// different sub-pixel, so the browser would round some gaps up and others
+// down and the grid would look uneven.
+function heatmapSizes(width, weeks) {
+  const dpr = window.devicePixelRatio || 1
+  const gap = Math.max(1, Math.round(HEATMAP_GAP * dpr)) / dpr
+  const fit = Math.floor(((width + gap) / weeks - gap) * dpr) / dpr
+  return { cell: Math.max(HEATMAP_MIN_CELL, fit), gap }
+}
 
 // A year of reviews per day, one column per week (Sunday at the top), like a
 // GitHub contribution graph. Shading is relative to the busiest day. Days
@@ -291,29 +407,83 @@ function ReviewHeatmap({ heatmap, onSelectDay }) {
   const busiest = Math.max(1, ...counts)
   const total = counts.reduce((sum, count) => sum + count, 0)
 
+  // Month names go over the first week column of each month. The first
+  // column only gets one when there's room before the next.
+  const weeks = Math.ceil(keys.length / 7)
+  const monthOf = (week) => keys[week * 7].slice(0, 7)
+  const monthStarts = []
+  for (let week = 1; week < weeks; week++) {
+    if (monthOf(week) !== monthOf(week - 1)) monthStarts.push(week)
+  }
+  if ((monthStarts[0] ?? weeks) >= 3) monthStarts.unshift(0)
+
+  // Cells are placed explicitly: row 1 holds month names, column 1 weekday names
+  const at = (row, column) => ({ gridRow: row, gridColumn: column })
+
+  // Size the squares to the panel's width, re-measured when it resizes
+  const scrollRef = useRef(null)
+  const [sizes, setSizes] = useState({ cell: 12, gap: HEATMAP_GAP })
+  useLayoutEffect(() => {
+    const scroll = scrollRef.current
+    function measure() {
+      const labels = [...scroll.querySelectorAll('.review-heatmap-weekday')]
+      const labelWidth = Math.ceil(Math.max(0, ...labels.map((label) => label.offsetWidth)))
+      const next = heatmapSizes(scroll.clientWidth - labelWidth, weeks)
+      setSizes((current) =>
+        current.cell === next.cell && current.gap === next.gap ? current : next
+      )
+    }
+    measure()
+    const resizeObserver = new ResizeObserver(measure)
+    resizeObserver.observe(scroll)
+    return () => resizeObserver.disconnect()
+  }, [weeks])
+
   return (
-    <figure className="review-heatmap">
-      <figcaption>
-        {total} {total === 1 ? 'review' : 'reviews'} in the past year
-      </figcaption>
-      <div className="review-heatmap-scroll">
+    <figure className="review-heatmap flashcards-panel">
+      <div className="flashcards-panel-header">
+        <h2 className="flashcards-panel-title">Review activity</h2>
+        <figcaption>
+          {total.toLocaleString()} {total === 1 ? 'review' : 'reviews'} in the past year
+        </figcaption>
+      </div>
+      <div className="review-heatmap-scroll" ref={scrollRef}>
         <div
           className="review-heatmap-grid"
           role="group"
           aria-label={`Reviews per day over the past year: ${total} in total`}
+          style={{
+            gridTemplateColumns: `auto repeat(${weeks}, ${sizes.cell}px)`,
+            gridTemplateRows: `auto repeat(7, ${sizes.cell}px)`,
+            gap: `${sizes.gap}px`,
+          }}
         >
-          {keys.map((key) => {
+          {monthStarts.map((week) => (
+            <span key={week} className="review-heatmap-month" style={at(1, week + 2)} aria-hidden="true">
+              {formatDayKey(keys[week * 7], { month: 'short', day: undefined })}
+            </span>
+          ))}
+          {['Mon', 'Wed', 'Fri'].map((name, index) => (
+            <span key={name} className="review-heatmap-weekday" style={at(index * 2 + 3, 1)} aria-hidden="true">
+              {name}
+            </span>
+          ))}
+          {keys.map((key, index) => {
             const count = days[key] ?? 0
             const level = count === 0 ? 0 : Math.ceil((count / busiest) * 4)
-            const className = `review-heatmap-day review-heatmap-level-${level}`
+            const className =
+              `review-heatmap-day review-heatmap-level-${level}` +
+              (key === today ? ' review-heatmap-today' : '')
             const label = `${formatDayKey(key)}: ${count} ${count === 1 ? 'review' : 'reviews'}`
+            const style = at((index % 7) + 2, Math.floor(index / 7) + 2)
             return count === 0 ? (
-              <span key={key} className={className} title={label} />
+              <span key={key} className={className} style={style} title={label} />
             ) : (
               <button
                 key={key}
                 type="button"
                 className={className}
+                style={style}
                 title={label}
                 aria-label={`${label}. Show that day's cards`}
                 onClick={() => onSelectDay(key)}
@@ -321,6 +491,13 @@ function ReviewHeatmap({ heatmap, onSelectDay }) {
             )
           })}
         </div>
+      </div>
+      <div className="review-heatmap-legend" aria-hidden="true">
+        Less
+        {[0, 1, 2, 3, 4].map((level) => (
+          <span key={level} className={`review-heatmap-day review-heatmap-level-${level}`} />
+        ))}
+        More
       </div>
     </figure>
   )
@@ -528,8 +705,9 @@ export default function Flashcards({ onBack }) {
   // null when not practicing. currentId is null once nothing is due.
   // deckCards is null for your own cards, or an in-memory array for a premade deck.
   const [practice, setPractice] = useState(null)
-  const [practiceMode, setPracticeMode] = useState('flip')
-  const [practiceOrder, setPracticeOrder] = useState('scheduled')
+  // Chosen on the settings page, and remembered in this browser
+  const [practiceMode, setPracticeMode] = useStoredChoice(PRACTICE_MODE_STORAGE_KEY, PRACTICE_MODES)
+  const [practiceOrder, setPracticeOrder] = useStoredChoice(PRACTICE_ORDER_STORAGE_KEY, PRACTICE_ORDERS)
   const [typedAnswer, setTypedAnswer] = useState('')
   const [typedResult, setTypedResult] = useState(null)
   const typedSubmitted = useRef(false)
@@ -542,6 +720,8 @@ export default function Flashcards({ onBack }) {
   const [moreMenuOpen, setMoreMenuOpen] = useState(false)
   // The Browse page: the full card table, for editing and removing cards
   const [browsing, setBrowsing] = useState(false)
+  // The settings page: practice options and spaced repetition
+  const [retentionOpen, setRetentionOpen] = useState(false)
   const [search, setSearch] = useState('')
   // The card list page, for a heatmap day or chart bar: null when closed,
   // otherwise { kind, start, end, reviews, error }. kind is a CARD_LISTS key;
@@ -1060,9 +1240,9 @@ export default function Flashcards({ onBack }) {
                     <span className="anki-romaji">({capitalize(romaji)})</span>
                   )}
 
-                  {/* Audio, available before and after flipping
-                      and replayable as many times as needed */}
-                  {(practiceMode !== 'type' || practiceFlipped) && <PronunciationButton key={card.id} card={card} />}
+                  {/* Audio, on the back of the card only (it would give
+                      the reading away) and replayable as many times as needed */}
+                  {practiceFlipped && <PronunciationButton key={card.id} card={card} />}
                 </div>
 
                 {practiceMode === 'type' && !practiceFlipped && (
@@ -1319,6 +1499,59 @@ export default function Flashcards({ onBack }) {
     )
   }
 
+  if (retentionOpen) {
+    return (
+      <div className="flashcards-page">
+        <TopBar onHome={onBack}>
+          <TopBarButton
+            label="Back to flashcards"
+            icon={<BackIcon />}
+            onClick={() => setRetentionOpen(false)}
+          />
+        </TopBar>
+
+        <main className="flashcards-content flashcards-settings-content">
+          <div className="flashcards-page-header">
+            <div>
+              <p className="flashcards-eyebrow">Flashcards</p>
+              <h1>Flashcard settings</h1>
+              <p className="flashcards-sub">
+                How you practice, and how often your cards come back for review.
+              </p>
+            </div>
+          </div>
+
+          <section className="flashcards-panel practice-settings" aria-labelledby="practice-settings-title">
+            <div className="flashcards-panel-header">
+              <h2 className="flashcards-panel-title" id="practice-settings-title">
+                Practice
+              </h2>
+              <p className="setting-panel-note">For your own cards and premade decks</p>
+            </div>
+            <div className="setting-options">
+              <ChoiceToggle
+                title="Practice mode"
+                description="Flip each card and grade yourself, or type the word's reading and have it checked."
+                value={practiceMode}
+                options={PRACTICE_MODES}
+                onChange={setPracticeMode}
+              />
+              <ChoiceToggle
+                title="Card order"
+                description="Scheduled shows what's due first. Random drills cards in any order without changing when they're due."
+                value={practiceOrder}
+                options={PRACTICE_ORDERS}
+                onChange={setPracticeOrder}
+              />
+            </div>
+          </section>
+
+          <RetentionSettings onChange={setDesiredRetention} />
+        </main>
+      </div>
+    )
+  }
+
   if (cardList) {
     const { kind, start, end } = cardList
     const { title, columns } = CARD_LISTS[kind]
@@ -1340,20 +1573,23 @@ export default function Flashcards({ onBack }) {
 
     return (
       <div className="flashcards-page">
-        <button
-          className="flashcards-back-btn"
-          onClick={() => {
-            setEditing(null)
-            setCardList(null)
-          }}
-        >
-          ← Back to Flashcards
-        </button>
+        <TopBar onHome={onBack}>
+          <TopBarButton
+            label="Back to flashcards"
+            icon={<BackIcon />}
+            onClick={() => {
+              setEditing(null)
+              setCardList(null)
+            }}
+          />
+        </TopBar>
 
+        <main className="flashcards-content">
         <div className="flashcards-page-header">
-          <h1>
-            {title} {dates}
-          </h1>
+          <div>
+            <p className="flashcards-eyebrow">{title}</p>
+            <h1>{dates}</h1>
+          </div>
           {loaded && (
             <p className="flashcards-count">
               {rows.length} {rows.length === 1 ? 'card' : 'cards'}
@@ -1418,9 +1654,11 @@ export default function Flashcards({ onBack }) {
                   <span className="flashcards-cell flashcards-row-actions">
                     <button
                       className="flashcard-edit-btn"
+                      aria-label={`Edit ${row.card.japanese}`}
+                      title="Edit"
                       onClick={() => setEditing({ ...row.card })}
                     >
-                      Edit
+                      <EditIcon />
                     </button>
                   </span>
                 </div>
@@ -1428,6 +1666,7 @@ export default function Flashcards({ onBack }) {
             </div>
           </div>
         )}
+        </main>
 
         {editing && (
           <RowEditDialog
@@ -1446,19 +1685,24 @@ export default function Flashcards({ onBack }) {
 
     return (
       <div className="flashcards-page">
-        <button
-          className="flashcards-back-btn"
-          onClick={() => {
-            setEditing(null)
-            setSearch('')
-            setBrowsing(false)
-          }}
-        >
-          ← Back to Flashcards
-        </button>
+        <TopBar onHome={onBack}>
+          <TopBarButton
+            label="Back to flashcards"
+            icon={<BackIcon />}
+            onClick={() => {
+              setEditing(null)
+              setSearch('')
+              setBrowsing(false)
+            }}
+          />
+        </TopBar>
 
+        <main className="flashcards-content">
         <div className="flashcards-page-header">
-          <h1>Browse</h1>
+          <div>
+            <p className="flashcards-eyebrow">Your collection</p>
+            <h1>Browse cards</h1>
+          </div>
           <p className="flashcards-count">
             {browseCards.length === cards.length
               ? `${cards.length} ${cards.length === 1 ? 'card' : 'cards'}`
@@ -1467,17 +1711,20 @@ export default function Flashcards({ onBack }) {
         </div>
 
         {cards.length > 0 && (
-          <input
-            type="search"
-            className="flashcards-search"
-            placeholder="Search by word, reading, or definition"
-            aria-label="Search cards by word, reading, or definition"
-            value={search}
-            onChange={(event) => {
-              setSearch(event.target.value)
-              if (tableScrollRef.current) tableScrollRef.current.scrollTop = 0
-            }}
-          />
+          <div className="flashcards-search-wrap">
+            <SearchIcon />
+            <input
+              type="search"
+              className="flashcards-search"
+              placeholder="Search by word, reading, or definition"
+              aria-label="Search cards by word, reading, or definition"
+              value={search}
+              onChange={(event) => {
+                setSearch(event.target.value)
+                if (tableScrollRef.current) tableScrollRef.current.scrollTop = 0
+              }}
+            />
+          </div>
         )}
 
         {error && <p className="error-text">{error}</p>}
@@ -1565,15 +1812,19 @@ export default function Flashcards({ onBack }) {
                       <span className="flashcards-cell flashcards-row-actions">
                         <button
                           className="flashcard-edit-btn"
+                          aria-label={`Edit ${card.japanese}`}
+                          title="Edit"
                           onClick={() => setEditing({ ...card })}
                         >
-                          Edit
+                          <EditIcon />
                         </button>
                         <button
                           className="flashcard-remove"
+                          aria-label={`Remove ${card.japanese}`}
+                          title="Remove"
                           onClick={() => removeCard(card.id)}
                         >
-                          Remove
+                          <TrashIcon />
                         </button>
                       </span>
                     </div>
@@ -1583,6 +1834,7 @@ export default function Flashcards({ onBack }) {
             </div>
           </div>
         )}
+        </main>
 
         {editing && (
           <RowEditDialog
@@ -1598,56 +1850,69 @@ export default function Flashcards({ onBack }) {
 
   return (
     <div className="flashcards-page">
-      {onBack && (
-        <button className="flashcards-back-btn" onClick={onBack}>
-          ← Back to Bookshelf
-        </button>
-      )}
+      <TopBar onHome={onBack}>
+        <TopBarButton
+          label="Flashcard settings"
+          icon={<SettingsIcon />}
+          onClick={() => setRetentionOpen(true)}
+        />
+        {onBack && (
+          <TopBarButton label="Back to bookshelf" icon={<BackIcon />} onClick={onBack} />
+        )}
+      </TopBar>
 
-      <div className="flashcards-page-header">
-        <h1>Flashcards</h1>
+      <main className="flashcards-content">
+      <div className="flashcards-page-header flashcards-hero">
+        <div>
+          <p className="flashcards-eyebrow">Study</p>
+          <h1>
+            Your <em>flashcards</em>
+          </h1>
+          <p className="flashcards-sub">
+            {tab === 'decks'
+              ? 'Practice ready-made decks of common words.'
+              : loading || cards.length === 0
+                ? 'Save words while you read, then review them here.'
+                : `${cards.length.toLocaleString()} ${cards.length === 1 ? 'card' : 'cards'} in your collection` +
+                  (stats ? ` · ${stats.due.today} due today` : '')}
+          </p>
+        </div>
         {tab === 'mine' && cards.length > 0 && (
           <div className="flashcards-header-actions">
             <button
               className="flashcard-browse-start"
               onClick={() => setBrowsing(true)}
             >
+              <TableIcon />
               Browse
             </button>
             <button className="flashcard-practice-start" onClick={startPractice}>
+              <PlayIcon />
               Practice
             </button>
           </div>
         )}
       </div>
 
-      <label className="practice-mode">Practice mode <select value={practiceMode} onChange={(event) => setPracticeMode(event.target.value)}>
-        <option value="flip">Flip cards</option><option value="type">Type answer</option>
-      </select></label>
-      <label className="practice-mode">
-        Card order
-        <select value={practiceOrder} onChange={(event) => setPracticeOrder(event.target.value)}>
-          <option value="scheduled">Scheduled</option>
-          <option value="random">Random (doesn't change schedule)</option>
-        </select>
-      </label>
-      <div className="flashcards-tabs" role="tablist">
-        <button
-          className="flashcards-tab"
-          role="tab"
-          aria-selected={tab === 'mine'}
-          onClick={() => setTab('mine')}
-        >
-          My Flashcards
-        </button>
-        <button
-          className="flashcards-tab"
-          role="tab"
-          aria-selected={tab === 'decks'}
-          onClick={() => setTab('decks')}
-        >
-          Decks
-        </button>
+      <div className="flashcards-toolbar">
+        <div className="flashcards-tabs" role="tablist">
+          <button
+            className="flashcards-tab"
+            role="tab"
+            aria-selected={tab === 'mine'}
+            onClick={() => setTab('mine')}
+          >
+            My Flashcards
+          </button>
+          <button
+            className="flashcards-tab"
+            role="tab"
+            aria-selected={tab === 'decks'}
+            onClick={() => setTab('decks')}
+          >
+            Decks
+          </button>
+        </div>
       </div>
 
       {tab === 'decks' ? (
@@ -1660,18 +1925,14 @@ export default function Flashcards({ onBack }) {
             <p className="flashcards-empty">Loading flashcards…</p>
           ) : cards.length === 0 ? (
             !error && (
-              <p>No flashcards saved yet. Save a word from its definition popup!</p>
+              <p className="flashcards-empty">No flashcards saved yet. Save a word from its definition popup!</p>
             )
           ) : (
-            <>
-              <p className="flashcards-count">
-                {cards.length} {cards.length === 1 ? 'card' : 'cards'}
-              </p>
-              {stats && <PracticeStats stats={stats} onOpenCards={openCardList} />}
-            </>
+            stats && <PracticeStats stats={stats} onOpenCards={openCardList} />
           )}
         </>
       )}
+      </main>
     </div>
   )
 }

@@ -2,8 +2,8 @@
   display: flex;
   flex-direction: column;
   width: 100%;
-  flex: 1;
-  min-height: 0;
+  /* Grow with the content, so the page background runs to the bottom */
+  flex: 1 0 auto;
 }
 
 .bookshelf-content {
